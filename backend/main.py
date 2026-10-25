@@ -1,6 +1,8 @@
 import os
 from typing import List, Optional
 from fastapi import FastAPI, Query, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -307,3 +309,46 @@ def set_gemini_api_key(req: ApiKeyRequest):
     else:
         os.environ.pop("GEMINI_API_KEY", None)
         return {"success": True, "message": "Cleared API key, using dynamic heuristic engine"}
+
+# ==========================================
+# Frontend SPA & Static Assets Serving
+# ==========================================
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+FRONTEND_DIST = os.path.join(PROJECT_ROOT, "frontend", "dist")
+
+if not os.path.exists(FRONTEND_DIST):
+    for candidate in [
+        os.path.join(os.getcwd(), "frontend", "dist"),
+        os.path.join(CURRENT_DIR, "frontend", "dist"),
+        os.path.join(CURRENT_DIR, "dist"),
+        os.path.join(os.getcwd(), "dist")
+    ]:
+        if os.path.exists(candidate):
+            FRONTEND_DIST = candidate
+            break
+
+if os.path.exists(FRONTEND_DIST):
+    assets_dir = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/")
+    async def serve_root():
+        index_file = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"detail": "Frontend index.html not found"}
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend_spa(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found")
+        file_path = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_file = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"detail": "Frontend index.html not found"}
+
