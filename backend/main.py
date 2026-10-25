@@ -330,6 +330,15 @@ if not os.path.exists(FRONTEND_DIST):
 
 @app.middleware("http")
 async def vercel_routing_middleware(request: Request, call_next):
+    if request.query_params.get("debug") == "1":
+        from fastapi.responses import JSONResponse
+        return JSONResponse({
+            "headers": dict(request.headers),
+            "scope_path": request.scope.get("path"),
+            "url_path": request.url.path,
+            "query": str(request.url.query)
+        })
+
     # When deployed on Vercel, requests rewritten to /api/index.py carry the real path in x-matched-path
     matched_path = (
         request.headers.get("x-matched-path")

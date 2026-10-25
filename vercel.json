@@ -9,15 +9,15 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?path=/api/$1"
     },
     {
       "source": "/assets/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?path=/assets/$1"
     },
     {
       "source": "/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?path=/$1"
     }
   ]
 }
