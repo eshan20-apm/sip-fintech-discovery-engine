@@ -1,6 +1,6 @@
 import os
 from typing import List, Optional
-from fastapi import FastAPI, Query, HTTPException, Response
+from fastapi import FastAPI, Query, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -328,6 +328,23 @@ if not os.path.exists(FRONTEND_DIST):
             FRONTEND_DIST = candidate
             break
 
+@app.middleware("http")
+async def vercel_routing_middleware(request: Request, call_next):
+    # When deployed on Vercel, requests rewritten to /api/index.py carry the real path in x-matched-path
+    matched_path = (
+        request.headers.get("x-matched-path")
+        or request.headers.get("x-vercel-matched-path")
+        or request.query_params.get("path")
+    )
+    current_path = request.scope.get("path", "")
+    if matched_path and current_path in ["/api/index.py", "/api"]:
+        clean_path = matched_path.split("?")[0]
+        request.scope["path"] = clean_path
+    elif current_path in ["/api/index.py", "/api"]:
+        request.scope["path"] = "/"
+
+    return await call_next(request)
+
 if os.path.exists(FRONTEND_DIST):
     assets_dir = os.path.join(FRONTEND_DIST, "assets")
     if os.path.exists(assets_dir):
@@ -342,7 +359,7 @@ if os.path.exists(FRONTEND_DIST):
 
     @app.get("/{full_path:path}")
     async def serve_frontend_spa(full_path: str):
-        if full_path.startswith("api/"):
+        if full_path.startswith("api/") and not full_path.startswith("api/index.py"):
             raise HTTPException(status_code=404, detail="API route not found")
         file_path = os.path.join(FRONTEND_DIST, full_path)
         if full_path and os.path.exists(file_path) and os.path.isfile(file_path):
@@ -351,4 +368,5 @@ if os.path.exists(FRONTEND_DIST):
         if os.path.exists(index_file):
             return FileResponse(index_file)
         return {"detail": "Frontend index.html not found"}
+
 
