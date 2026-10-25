@@ -1,0 +1,12 @@
+{
+  "name": "sip-fintech-discovery-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SIP & Fintech Investor Behavior Discovery Engine",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "source backend/venv/bin/activate && uvicorn backend.main:app --reload",
+    "start": "./run.sh"
+  }
+}
