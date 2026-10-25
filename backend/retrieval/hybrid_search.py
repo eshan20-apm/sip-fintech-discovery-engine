@@ -1,17 +1,89 @@
 import sqlite3
 import os
 import re
-from typing import List, Dict, Any, Optional
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import math
+from typing import List, Dict, Any, Optional, Tuple
+from collections import Counter
 from backend.database import get_db
+
+ENGLISH_STOP_WORDS = {
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", 
+    "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", 
+    "by", "can", "did", "do", "does", "doing", "down", "during", "each", "few", "for", "from", 
+    "further", "had", "has", "have", "having", "he", "her", "here", "hers", "herself", "him", 
+    "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", 
+    "me", "more", "most", "my", "myself", "no", "nor", "not", "now", "of", "off", "on", "once", 
+    "only", "or", "other", "our", "ours", "ourselves", "out", "over", "own", "s", "same", "she", 
+    "should", "so", "some", "such", "t", "than", "that", "the", "their", "theirs", "them", 
+    "themselves", "then", "there", "these", "they", "this", "those", "through", "to", "too", 
+    "under", "until", "up", "very", "was", "we", "were", "what", "when", "where", "which", 
+    "while", "who", "whom", "why", "will", "with", "you", "your", "yours", "yourself", "yourselves"
+}
+
+def extract_features(text: str) -> List[str]:
+    words = [w for w in re.findall(r'\b[a-zA-Z0-9]{2,}\b', text.lower()) if w not in ENGLISH_STOP_WORDS]
+    bigrams = [f"{words[i]}_{words[i+1]}" for i in range(len(words) - 1)]
+    return words + bigrams
+
+class PureDenseTfidfIndex:
+    """Lightweight, pure-Python sublinear TF-IDF semantic vector index."""
+    def __init__(self):
+        self.doc_ids: List[str] = []
+        self.doc_vectors: List[Dict[str, float]] = []
+        self.idf: Dict[str, float] = {}
+
+    def fit_transform(self, doc_ids: List[str], docs: List[str]):
+        self.doc_ids = doc_ids
+        n_docs = len(docs)
+        if n_docs == 0:
+            self.doc_vectors = []
+            self.idf = {}
+            return
+
+        doc_tokens = [extract_features(d) for d in docs]
+        df = Counter()
+        for tokens in doc_tokens:
+            for term in set(tokens):
+                df[term] += 1
+
+        self.idf = {term: math.log((1.0 + n_docs) / (1.0 + freq)) + 1.0 for term, freq in df.items()}
+
+        self.doc_vectors = []
+        for tokens in doc_tokens:
+            counts = Counter(tokens)
+            vec = {}
+            for term, count in counts.items():
+                if term in self.idf:
+                    tf = 1.0 + math.log(count)
+                    vec[term] = tf * self.idf[term]
+            norm = math.sqrt(sum(v * v for v in vec.values())) or 1.0
+            self.doc_vectors.append({t: v / norm for t, v in vec.items()})
+
+    def query(self, query_text: str, top_k: int = 100, min_score: float = 0.02) -> List[Tuple[str, float]]:
+        q_tokens = extract_features(query_text)
+        if not q_tokens:
+            return []
+        q_counts = Counter(q_tokens)
+        q_vec = {}
+        for term, count in q_counts.items():
+            if term in self.idf:
+                tf = 1.0 + math.log(count)
+                q_vec[term] = tf * self.idf[term]
+        q_norm = math.sqrt(sum(v * v for v in q_vec.values())) or 1.0
+        q_unit = {t: v / q_norm for t, v in q_vec.items()}
+
+        results = []
+        for doc_id, doc_vec in zip(self.doc_ids, self.doc_vectors):
+            dot = sum(q_unit[t] * doc_vec[t] for t in q_unit if t in doc_vec)
+            if dot >= min_score:
+                results.append((doc_id, dot))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
 
 class HybridSearchEngine:
     def __init__(self):
-        self._vectorizer: Optional[TfidfVectorizer] = None
-        self._corpus_matrix = None
-        self._corpus_post_ids: List[str] = []
+        self._dense_index = PureDenseTfidfIndex()
         self._cached_post_count = 0
 
     def _sync_dense_index(self):
@@ -23,26 +95,16 @@ class HybridSearchEngine:
         conn.close()
 
         if not rows:
-            self._vectorizer = None
-            self._corpus_matrix = None
-            self._corpus_post_ids = []
+            self._dense_index = PureDenseTfidfIndex()
             self._cached_post_count = 0
             return
 
-        if len(rows) == self._cached_post_count and self._vectorizer is not None:
+        if len(rows) == self._cached_post_count and self._dense_index.doc_ids:
             return
 
-        self._corpus_post_ids = [r[0] for r in rows]
+        post_ids = [r[0] for r in rows]
         corpus_texts = [r[1] for r in rows]
-
-        # Fit sublinear TF-IDF with unigrams and bigrams
-        self._vectorizer = TfidfVectorizer(
-            ngram_range=(1, 2),
-            sublinear_tf=True,
-            stop_words="english",
-            max_features=10000
-        )
-        self._corpus_matrix = self._vectorizer.fit_transform(corpus_texts)
+        self._dense_index.fit_transform(post_ids, corpus_texts)
         self._cached_post_count = len(rows)
 
     def search(
@@ -89,23 +151,9 @@ class HybridSearchEngine:
         # 2. Dense Semantic Vector Search
         self._sync_dense_index()
         dense_ranks: Dict[str, int] = {}
-        if self._vectorizer is not None and self._corpus_matrix is not None:
-            try:
-                query_vec = self._vectorizer.transform([clean_query])
-                sim_scores = cosine_similarity(query_vec, self._corpus_matrix)[0]
-                
-                # Sort descending by cosine similarity
-                sorted_indices = np.argsort(sim_scores)[::-1]
-                rank_counter = 1
-                for idx in sorted_indices:
-                    score = float(sim_scores[idx])
-                    if score < 0.02 or rank_counter > 100:
-                        break
-                    p_id = self._corpus_post_ids[idx]
-                    dense_ranks[p_id] = rank_counter
-                    rank_counter += 1
-            except Exception as e:
-                print(f"Notice: Dense vector search error: {e}")
+        dense_matches = self._dense_index.query(clean_query, top_k=100, min_score=0.02)
+        for rank_idx, (p_id, _) in enumerate(dense_matches):
+            dense_ranks[p_id] = rank_idx + 1
 
         # 3. Reciprocal Rank Fusion (RRF)
         candidate_ids = set(sparse_ranks.keys()).union(set(dense_ranks.keys()))

@@ -1,33 +1,38 @@
 import sqlite3
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
-from sklearn.metrics import cohen_kappa_score, confusion_matrix
 from backend.database import get_db, save_golden_tag
 
 def calculate_cohen_kappa(y_true: List[str], y_pred: List[str]) -> Tuple[float, float]:
     """
-    Computes observed agreement (P_o) and Cohen's Kappa score (chance-adjusted agreement).
+    Computes observed agreement (P_o) and Cohen's Kappa score (chance-adjusted agreement)
+    using exact standard statistical formulation without heavy binary dependencies.
     Returns: (kappa_score, observed_agreement_percent)
     """
     if not y_true or not y_pred or len(y_true) != len(y_pred):
         return 0.0, 0.0
 
-    total = len(y_true)
+    n = len(y_true)
     matches = sum(1 for t, p in zip(y_true, y_pred) if t == p)
-    observed_agreement = (matches / total) * 100.0
+    observed_agreement = (matches / n) * 100.0
+    po = matches / n
+
+    c_true = Counter(y_true)
+    c_pred = Counter(y_pred)
+    categories = set(c_true.keys()) | set(c_pred.keys())
 
     # If only 1 unique label, kappa is not statistically well-defined
-    if len(set(y_true).union(set(y_pred))) <= 1:
+    if len(categories) <= 1:
         return 1.0 if observed_agreement == 100.0 else 0.0, round(observed_agreement, 1)
 
-    try:
-        kappa = cohen_kappa_score(y_true, y_pred)
-        if kappa is None or str(kappa) == 'nan':
-            kappa = 0.0
-        return round(float(kappa), 3), round(observed_agreement, 1)
-    except Exception as e:
-        print(f"Kappa calculation notice: {e}")
-        return 0.0, round(observed_agreement, 1)
+    pe = sum((c_true[k] / n) * (c_pred[k] / n) for k in categories)
+
+    if pe >= 1.0:
+        kappa = 1.0 if po >= 1.0 else 0.0
+    else:
+        kappa = (po - pe) / (1.0 - pe)
+
+    return round(float(kappa), 3), round(observed_agreement, 1)
 
 def get_kappa_interpretation(kappa: float) -> str:
     """Standard Landis & Koch (1977) scale for interpreting Cohen's Kappa."""
