@@ -19,17 +19,22 @@ SPAM_PATTERNS = [
 
 def is_spam(text: str) -> bool:
     """Filter out promotional Telegram links, WhatsApp spam, and bot advertisements."""
-    if len(text.strip()) < 20:
+    if not text or len(str(text).strip()) < 20:
         return True
-    text_lower = text.lower()
+    text_lower = str(text).lower()
     for pattern in SPAM_PATTERNS:
         if re.search(pattern, text_lower):
             return True
     return False
 
+# Backward-compatible alias
+is_spam_or_promotional = is_spam
+
 def compute_token_set(text: str) -> Set[str]:
     """Extract set of normalized alphanumeric tokens without common noise stopwords."""
-    words = re.findall(r'\b[a-zA-Z0-9]{3,}\b', text.lower())
+    if not text:
+        return set()
+    words = re.findall(r'\b[a-zA-Z0-9]{3,}\b', str(text).lower())
     return {w for w in words if w not in STOPWORDS}
 
 def jaccard_similarity(set_a: Set[str], set_b: Set[str]) -> float:
@@ -48,14 +53,20 @@ def deduplicate_posts(posts: List[Dict[str, Any]], similarity_threshold: float =
     3. Performs fuzzy Jaccard similarity match (>85% token match) to drop duplicate cross-posts
     Returns: (clean_posts, dropped_count)
     """
+    if not posts:
+        return [], 0
+
     clean_posts = []
     seen_hashes = set()
     seen_token_sets: List[Tuple[Set[str], str]] = []
     dropped_count = 0
 
     for post in posts:
+        if not isinstance(post, dict):
+            dropped_count += 1
+            continue
         raw_text = post.get("raw_text", "")
-        if is_spam(raw_text):
+        if not raw_text or is_spam(raw_text):
             dropped_count += 1
             continue
 

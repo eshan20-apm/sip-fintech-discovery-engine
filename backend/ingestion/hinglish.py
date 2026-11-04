@@ -57,19 +57,23 @@ HINGLISH_FINTECH_GLOSSARY = {
 
 def detect_hinglish(text: str) -> bool:
     """Detect if the comment contains Indian colloquial Hinglish terms."""
+    if not text:
+        return False
     hinglish_markers = [
         "kare", "karna", "nahi", "paisa", "kat", "gaya", "aaya", "kya", "hai", "bhi",
         "kaise", "band", "rok", "wala", "mein", "mera", "meri", "karo", "raha", "rahi",
         "nuksan", "ghata", "rupaye", "rupay", "dikh", "iska", "uske", "kuch", "hoti"
     ]
-    words = set(re.findall(r'\b[a-zA-Z]{3,}\b', text.lower()))
+    words = set(re.findall(r'\b[a-zA-Z]{3,}\b', str(text).lower()))
     matches = words.intersection(hinglish_markers)
     return len(matches) >= 2
 
 def get_hinglish_context_hint(text: str) -> str:
     """Generate an analytical English explanation of Hinglish friction expressions in the comment."""
+    if not text:
+        return ""
     hints = []
-    text_lower = text.lower()
+    text_lower = str(text).lower()
     for pattern, data in HINGLISH_FINTECH_GLOSSARY.items():
         if re.search(pattern, text_lower):
             hints.append(data['explanation'])
@@ -80,7 +84,9 @@ def get_hinglish_context_hint(text: str) -> str:
 
 def enrich_with_hinglish_context(text: str) -> Dict[str, Any]:
     """Extract structured intent and suggested theme from Hinglish comments."""
-    text_lower = text.lower()
+    if not text:
+        return {'detected': False, 'explanation': '', 'theme': '', 'action': ''}
+    text_lower = str(text).lower()
     for pattern, data in HINGLISH_FINTECH_GLOSSARY.items():
         if re.search(pattern, text_lower):
             return {
@@ -90,3 +96,6 @@ def enrich_with_hinglish_context(text: str) -> Dict[str, Any]:
                 'action': data['action']
             }
     return {'detected': False, 'explanation': '', 'theme': '', 'action': ''}
+
+# Backward-compatible alias
+enrich_hinglish_context = enrich_with_hinglish_context

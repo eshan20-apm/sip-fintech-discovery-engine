@@ -65,32 +65,58 @@ graph TD
 
 ## 🚀 Quick Start Guide
 
-### 1. One-Click Launch (Recommended)
+The application supports **macOS**, **Linux**, and **Windows** with Python 3.9–3.12 and Node.js 18+.
 
-Run the included master launch script from the project root:
+### 1. One-Click Launchers
+
+Choose the launcher for your operating system:
+
+* **Universal (Any OS - macOS, Linux, Windows)**:
+  ```bash
+  python run.py
+  ```
+* **macOS / Linux**:
+  ```bash
+  chmod +x run.sh
+  ./run.sh
+  ```
+* **Windows**:
+  Double-click `run.bat` or run in Command Prompt / PowerShell:
+  ```cmd
+  run.bat
+  ```
+
+Each launcher automatically:
+1. Detects or creates the Python virtual environment (`.venv`).
+2. Installs backend dependencies from `requirements.txt`.
+3. Installs frontend dependencies from `package.json` (`npm install`).
+4. Verifies/initializes the SQLite database schema and FTS5 search index.
+5. Launches FastAPI on [http://127.0.0.1:8000](http://127.0.0.1:8000) and the Vite UI on [http://127.0.0.1:5173](http://127.0.0.1:5173).
+
+### 2. Running Automated Tests
+
+Run the full end-to-end unit and integration test suite:
 
 ```bash
-chmod +x run.sh
-./run.sh
+# Sandboxed/local test execution
+python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-This script automatically verifies dependencies, initializes the SQLite database, launches the FastAPI backend on port `8000`, and launches the Vite frontend on port `5173`.
+All 30+ tests verify database operations, network fault tolerance across scrapers, heuristic LLM tagger rules, Reciprocal Rank Fusion retrieval, Cohen's Kappa evaluation, and API endpoints.
 
-### 2. Manual Startup
+### 3. Manual Startup
 
 **Terminal 1 — Backend (FastAPI):**
 ```bash
 # Activate virtual environment
-source backend/venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Start API server with auto-reload
-python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 **Terminal 2 — Frontend (React / Vite):**
 ```bash
-cd frontend
-
 # Install node modules if first run
 npm install
 

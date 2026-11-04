@@ -37,6 +37,17 @@ else
     source backend/venv/bin/activate
 fi
 
+# Ensure root .venv symlink exists for IDEs and tooling
+if [ ! -L ".venv" ] && [ ! -d ".venv" ]; then
+    ln -s backend/venv .venv 2>/dev/null || true
+fi
+
+# Check frontend dependencies
+if [ ! -d "frontend/node_modules" ]; then
+    echo "📦 Installing frontend npm packages (first-time setup)..."
+    (cd frontend && npm install)
+fi
+
 # 3. Initialize SQLite Database & Ensure Tables Exist
 echo "💾 Checking SQLite database and search indexes..."
 python3 -c "

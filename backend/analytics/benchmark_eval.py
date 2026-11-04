@@ -1,6 +1,15 @@
+import sys
+import os
 import sqlite3
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.database import get_db, save_golden_tag
 
 def calculate_cohen_kappa(y_true: List[str], y_pred: List[str]) -> Tuple[float, float]:
@@ -205,6 +214,7 @@ def get_disagreements(limit: int = 50) -> List[Dict[str, Any]]:
         t.what_they_did != g.what_they_did OR
         t.who_can_fix_it != g.who_can_fix_it
     )
+    AND (g.notes NOT LIKE '%PM reviewed and confirmed Golden Benchmark%' OR g.notes IS NULL)
     ORDER BY g.updated_at DESC
     LIMIT ?
     """, (limit,))
@@ -279,11 +289,30 @@ def resolve_disagreement(post_id: str, resolution_type: str, custom_tags: Option
         })
         return True
 
-    elif resolution_type == "override_golden" and custom_tags:
-        conn.close()
-        custom_tags["post_id"] = post_id
-        save_golden_tag(custom_tags)
-        return True
+    elif resolution_type == "override_golden":
+        if custom_tags:
+            conn.close()
+            custom_tags["post_id"] = post_id
+            save_golden_tag(custom_tags)
+            return True
+        else:
+            # Re-affirm and lock golden benchmark, noting PM reviewed and confirmed golden truth
+            cursor.execute("SELECT * FROM golden_tags WHERE post_id = ?", (post_id,))
+            grow = cursor.fetchone()
+            if not grow:
+                conn.close()
+                return False
+            existing_notes = grow["notes"] or ""
+            audit_note = "PM reviewed and confirmed Golden Benchmark"
+            new_notes = existing_notes if audit_note in existing_notes else (f"{existing_notes} | {audit_note}" if existing_notes else audit_note)
+            cursor.execute("""
+            UPDATE golden_tags 
+            SET notes = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE post_id = ?
+            """, (new_notes, post_id))
+            conn.commit()
+            conn.close()
+            return True
 
     conn.close()
     return False

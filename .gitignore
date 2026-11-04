@@ -2,6 +2,8 @@
 node_modules/
 frontend/node_modules/
 backend/venv/
+.venv/
+.venv
 
 # Python cache
 __pycache__/
@@ -25,3 +27,8 @@ Thumbs.db
 .vercel
 _uv/
 uv.lock
+
+# SQLite WAL and temp files
+*.db-wal
+*.db-shm
+*.db-journal

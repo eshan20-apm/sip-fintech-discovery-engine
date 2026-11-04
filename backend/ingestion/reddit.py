@@ -1,14 +1,31 @@
+import sys
+import os
 import requests
 import xml.etree.ElementTree as ET
 import re
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import List, Dict, Any, Optional, TypedDict
+from datetime import datetime, timezone
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.ingestion.normalizer import clean_text, anonymize_text, generate_post_id
 
 REDDIT_SUBREDDITS = ["IndiaInvestments", "Mutualfunds"]
 
+class CuratedRedditPost(TypedDict):
+    title: str
+    selftext: str
+    subreddit: str
+    platform: str
+    id: str
+    url: str
+
 # Authentic public Reddit discussions representing diverse retail investor behavior archetypes
-CURATED_REDDIT_ARCHIVE = [
+CURATED_REDDIT_ARCHIVE: List[CuratedRedditPost] = [
     {
         "title": "First time investor: SIP down -4% after 3 months, should I stop or continue?",
         "selftext": "I am 23 and started my first job 4 months ago. Started 3000/month SIP in Nifty 50 and Midcap fund based on YouTube finance videos. Looking at my dashboard, my total invested is 9000 and current value is 8640 (-4%). Feeling anxious that I am losing my hard earned money every month while FDs give guaranteed 7%. Is SIP really worth it during market dips or should I stop now and wait for bull run?",
@@ -104,6 +121,8 @@ def fetch_reddit_posts(
     limit: int = 25
 ) -> List[Dict[str, Any]]:
     """Fetch live public Reddit posts with resilient fallback to authentic archive."""
+    limit = limit if (limit and limit > 0) else 25
+    query = query or "SIP"
     if not subreddits:
         subreddits = REDDIT_SUBREDDITS
 
@@ -158,7 +177,7 @@ def fetch_reddit_posts(
                         "source_id": str(source_id),
                         "raw_text": anonymized,
                         "url": post_url,
-                        "published_at": datetime.utcnow().isoformat()
+                        "published_at": datetime.now(timezone.utc).isoformat()
                     })
 
                     if len(collected_posts) >= limit:
@@ -192,7 +211,7 @@ def fetch_reddit_posts(
                 "source_id": item["id"],
                 "raw_text": anonymized,
                 "url": item["url"],
-                "published_at": datetime.utcnow().isoformat()
+                "published_at": datetime.now(timezone.utc).isoformat()
             })
 
             if len(collected_posts) >= limit:

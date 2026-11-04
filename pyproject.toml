@@ -1,15 +1,19 @@
 [project]
-name = "app"
-version = "0.1.0"
+name = "sip-fintech-discovery-engine"
+version = "1.0.0"
+description = "SIP & Fintech Investor Behavior Discovery Engine (Prompt-Driven AI Workbench)"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "pydantic>=2.8.0",
     "google-play-scraper>=1.2.7",
     "requests>=2.31.0",
+    "pandas>=2.2.0",
     "openpyxl>=3.1.5",
     "python-dotenv>=1.0.1",
     "google-genai>=1.0.0",
-    "youtube-comment-downloader>=0.1.84"
+    "youtube-comment-downloader>=0.1.84",
+    "scikit-learn>=1.5.0",
+    "numpy>=1.26.0"
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.9"

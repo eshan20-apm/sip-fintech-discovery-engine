@@ -1,14 +1,37 @@
+import sys
+import os
 import re
 import urllib.request
 import urllib.parse
-from typing import List, Dict, Any, Optional
-from datetime import datetime
+from typing import List, Dict, Any, Optional, TypedDict
+from datetime import datetime, timezone
 from itertools import islice
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.ingestion.normalizer import clean_text, anonymize_text, generate_post_id
 from backend.ingestion.dedup import is_spam
 
+class FintechVideo(TypedDict):
+    video_id: str
+    title: str
+    creator: str
+    platform: str
+    url: str
+
+class CuratedYoutubeComment(TypedDict):
+    video_title: str
+    text: str
+    platform: str
+    video_id: str
+    id: str
+
 # Verified active Indian Personal Finance YouTube videos covering SIPs, cancellations, mandates, and platform switching
-YOUTUBE_FINTECH_VIDEOS = [
+YOUTUBE_FINTECH_VIDEOS: List[FintechVideo] = [
     {
         "video_id": "D0197e_IC5U",
         "title": "Groww App Me SIP Kaise Band Kare | How to Cancel SIP in Groww",
@@ -47,7 +70,7 @@ YOUTUBE_FINTECH_VIDEOS = [
 ]
 
 # Authentic public YouTube comments reflecting real retail investor questions and friction points
-CURATED_YOUTUBE_COMMENTS = [
+CURATED_YOUTUBE_COMMENTS: List[CuratedYoutubeComment] = [
     {
         "video_title": "Groww SIP Kaise Band Kare | How to Cancel SIP in Groww App",
         "text": "Sir I cancelled my Groww SIP on 4th of this month, but bank still debited 2000 on 5th morning! Groww support says mandate takes 3 business days to cancel at bank level. Now my balance is negative and bank charged 500 bounce fee. Why don't they warn users in app that cancel takes time?",
@@ -153,6 +176,7 @@ def fetch_youtube_comments(
     Fetch comments from Indian personal finance YouTube videos using youtube-comment-downloader
     with seamless fallback to authentic retail investor comment archive.
     """
+    limit = limit if (limit and limit > 0) else 20
     collected = []
     seen_ids = set()
 
@@ -204,7 +228,7 @@ def fetch_youtube_comments(
                         "source_id": cid or f"yt_{video['video_id']}",
                         "raw_text": anonymized,
                         "url": url,
-                        "published_at": datetime.utcnow().isoformat(),
+                        "published_at": datetime.now(timezone.utc).isoformat(),
                         "video_title": video["title"]
                     })
 
@@ -240,7 +264,7 @@ def fetch_youtube_comments(
                 "source_id": item["id"],
                 "raw_text": anonymized,
                 "url": f"https://www.youtube.com/watch?v={item['video_id']}",
-                "published_at": datetime.utcnow().isoformat(),
+                "published_at": datetime.now(timezone.utc).isoformat(),
                 "video_title": item["video_title"]
             })
 

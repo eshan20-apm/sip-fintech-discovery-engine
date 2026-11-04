@@ -1,9 +1,17 @@
+import sys
 import sqlite3
 import os
 import re
 import math
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.database import get_db
 
 ENGLISH_STOP_WORDS = {
@@ -207,7 +215,7 @@ class HybridSearchEngine:
             fetch_sql += " AND p.source = ?"
             filter_params.append(source)
 
-        if status == "hand_labelled":
+        if status in ["hand_labelled", "golden"]:
             fetch_sql += " AND g.id IS NOT NULL"
         elif status == "ai_tagged":
             fetch_sql += " AND g.id IS NULL"

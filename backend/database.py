@@ -1,7 +1,14 @@
+import sys
 import sqlite3
 import os
 import shutil
 from typing import List, Dict, Any, Optional
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 ORIGINAL_DB_PATH = os.path.join(os.path.dirname(__file__), "sip_discovery.db")
 
@@ -18,13 +25,22 @@ else:
     DB_PATH = ORIGINAL_DB_PATH
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA foreign_keys = ON;")
+    except Exception:
+        pass
     return conn
 
 def init_db():
     conn = get_db()
     cursor = conn.cursor()
+
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+    except Exception:
+        pass
 
     # Core posts table
     cursor.execute("""
@@ -81,6 +97,23 @@ def init_db():
     """)
 
     conn.commit()
+
+    # Self-healing FTS5 sync check
+    try:
+        cursor.execute("SELECT COUNT(*) FROM posts")
+        post_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM posts_fts")
+        fts_count = cursor.fetchone()[0]
+        if post_count > 0 and fts_count < post_count:
+            cursor.execute("DELETE FROM posts_fts")
+            cursor.execute("""
+            INSERT INTO posts_fts (post_id, platform, raw_text)
+            SELECT id, platform, raw_text FROM posts
+            """)
+            conn.commit()
+    except Exception as e:
+        print(f"Notice: FTS5 self-healing sync check: {e}")
+
     conn.close()
 
 def save_post_with_tag(post: Dict[str, Any], tag: Dict[str, Any]) -> bool:
@@ -204,6 +237,7 @@ def fetch_posts(
     
     where_clauses = []
     params = []
+    fts_expr: Optional[str] = None
 
     if search_query and search_query.strip():
         # Clean search query for FTS5
@@ -241,7 +275,7 @@ def fetch_posts(
         where_clauses.append("(COALESCE(g.who_can_fix_it, t.who_can_fix_it) = ?)")
         params.append(who_can_fix_it)
 
-    if status == "hand_labelled":
+    if status in ["hand_labelled", "golden"]:
         where_clauses.append("g.id IS NOT NULL")
     elif status == "ai_tagged":
         where_clauses.append("g.id IS NULL")
@@ -252,66 +286,102 @@ def fetch_posts(
     query += " ORDER BY p.fetched_at DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    results = [dict(row) for row in rows]
-    conn.close()
-    return results
+    rows = []
+    try:
+        try:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        except sqlite3.OperationalError as e:
+            # If FTS MATCH syntax error or other operational error occurred with fts_expr,
+            # fallback cleanly to a standard LIKE search
+            if search_query and search_query.strip() and fts_expr is not None:
+                fallback_where = [w for w in where_clauses if "posts_fts" not in w]
+                fallback_params = [p for p in params[:-2] if p != fts_expr]
+                fallback_where.append("p.raw_text LIKE ?")
+                fallback_params.append(f"%{search_query.strip()}%")
+                
+                fallback_query = """
+                SELECT 
+                    p.id, p.platform, p.source, p.source_id, p.raw_text, p.url, p.published_at, p.fetched_at,
+                    t.theme as ai_theme, t.journey_stage as ai_journey_stage, t.what_they_did as ai_what_they_did,
+                    t.who_they_are as ai_who_they_are, t.who_can_fix_it as ai_who_can_fix_it,
+                    t.evidence_quote as ai_evidence_quote, t.model_name, t.tagged_at,
+                    g.id as golden_id, g.theme as golden_theme, g.journey_stage as golden_journey_stage,
+                    g.what_they_did as golden_what_they_did, g.who_they_are as golden_who_they_are,
+                    g.who_can_fix_it as golden_who_can_fix_it, g.evidence_quote as golden_evidence_quote,
+                    g.notes as golden_notes, g.updated_at as golden_updated_at,
+                    CASE WHEN g.id IS NOT NULL THEN 1 ELSE 0 END as is_hand_labelled
+                FROM posts p
+                LEFT JOIN post_tags t ON p.id = t.post_id
+                LEFT JOIN golden_tags g ON p.id = g.post_id
+                """
+                if fallback_where:
+                    fallback_query += " WHERE " + " AND ".join(fallback_where)
+                fallback_query += " ORDER BY p.fetched_at DESC LIMIT ? OFFSET ?"
+                fallback_params.extend([limit, offset])
+                cursor.execute(fallback_query, fallback_params)
+                rows = cursor.fetchall()
+            else:
+                raise e
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
 
 def get_stats() -> Dict[str, Any]:
     conn = get_db()
     cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM posts")
+        total_posts = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM posts")
-    total_posts = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM golden_tags")
+        golden_count = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM golden_tags")
-    golden_count = cursor.fetchone()[0]
+        cursor.execute("SELECT platform, COUNT(*) FROM posts GROUP BY platform")
+        platform_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
-    cursor.execute("SELECT platform, COUNT(*) FROM posts GROUP BY platform")
-    platform_counts = {row[0]: row[1] for row in cursor.fetchall()}
-
-    cursor.execute("""
-    SELECT COALESCE(g.theme, t.theme) as active_theme, COUNT(*) 
-    FROM posts p
-    LEFT JOIN post_tags t ON p.id = t.post_id
-    LEFT JOIN golden_tags g ON p.id = g.post_id
-    GROUP BY active_theme
-    """)
-    theme_counts = {row[0] or "Unclear": row[1] for row in cursor.fetchall()}
-
-    # Calculate agreement between AI and Golden tags if there are golden records
-    agreement_rate = 0.0
-    field_accuracies = {}
-    if golden_count > 0:
         cursor.execute("""
-        SELECT 
-            SUM(CASE WHEN t.theme = g.theme THEN 1 ELSE 0 END) as theme_match,
-            SUM(CASE WHEN t.journey_stage = g.journey_stage THEN 1 ELSE 0 END) as journey_match,
-            SUM(CASE WHEN t.what_they_did = g.what_they_did THEN 1 ELSE 0 END) as action_match,
-            SUM(CASE WHEN t.who_can_fix_it = g.who_can_fix_it THEN 1 ELSE 0 END) as fixer_match,
-            COUNT(*) as total
-        FROM post_tags t
-        JOIN golden_tags g ON t.post_id = g.post_id
+        SELECT COALESCE(g.theme, t.theme) as active_theme, COUNT(*) 
+        FROM posts p
+        LEFT JOIN post_tags t ON p.id = t.post_id
+        LEFT JOIN golden_tags g ON p.id = g.post_id
+        GROUP BY active_theme
         """)
-        row = cursor.fetchone()
-        if row and row[4] > 0:
-            total = row[4]
-            field_accuracies = {
-                "theme": round((row[0] / total) * 100, 1),
-                "journey_stage": round((row[1] / total) * 100, 1),
-                "what_they_did": round((row[2] / total) * 100, 1),
-                "who_can_fix_it": round((row[3] / total) * 100, 1)
-            }
-            avg_acc = (row[0] + row[1] + row[2] + row[3]) / (total * 4)
-            agreement_rate = round(avg_acc * 100, 1)
+        theme_counts = {row[0] or "Unclear": row[1] for row in cursor.fetchall()}
 
-    conn.close()
-    return {
-        "total_posts": total_posts,
-        "golden_count": golden_count,
-        "agreement_rate": agreement_rate,
-        "field_accuracies": field_accuracies,
-        "platform_counts": platform_counts,
-        "theme_counts": theme_counts
-    }
+        # Calculate agreement between AI and Golden tags if there are golden records
+        agreement_rate = 0.0
+        field_accuracies = {}
+        if golden_count > 0:
+            cursor.execute("""
+            SELECT 
+                SUM(CASE WHEN t.theme = g.theme THEN 1 ELSE 0 END) as theme_match,
+                SUM(CASE WHEN t.journey_stage = g.journey_stage THEN 1 ELSE 0 END) as journey_match,
+                SUM(CASE WHEN t.what_they_did = g.what_they_did THEN 1 ELSE 0 END) as action_match,
+                SUM(CASE WHEN t.who_can_fix_it = g.who_can_fix_it THEN 1 ELSE 0 END) as fixer_match,
+                COUNT(*) as total
+            FROM post_tags t
+            JOIN golden_tags g ON t.post_id = g.post_id
+            """)
+            row = cursor.fetchone()
+            if row and row[4] > 0:
+                total = row[4]
+                field_accuracies = {
+                    "theme": round((row[0] / total) * 100, 1),
+                    "journey_stage": round((row[1] / total) * 100, 1),
+                    "what_they_did": round((row[2] / total) * 100, 1),
+                    "who_can_fix_it": round((row[3] / total) * 100, 1)
+                }
+                avg_acc = (row[0] + row[1] + row[2] + row[3]) / (total * 4)
+                agreement_rate = round(avg_acc * 100, 1)
+
+        return {
+            "total_posts": total_posts,
+            "golden_count": golden_count,
+            "agreement_rate": agreement_rate,
+            "field_accuracies": field_accuracies,
+            "platform_counts": platform_counts,
+            "theme_counts": theme_counts
+        }
+    finally:
+        conn.close()

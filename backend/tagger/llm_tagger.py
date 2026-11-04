@@ -1,7 +1,14 @@
+import sys
 import os
 import json
 import re
 from typing import Dict, Any, Optional, List
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 SYSTEM_PROMPT = """You are a senior Fintech Product Management Research Assistant specializing in retail investor behavior, Systematic Investment Plans (SIPs), and Indian mutual fund platforms (Groww, Zerodha Coin, Angel One, INDmoney, Kuvera, Paytm Money).
 
@@ -91,19 +98,34 @@ def analyze_research_query(query: str, api_key: Optional[str] = None) -> Dict[st
                 temperature=0.2
             )
         )
-        parsed = json.loads(response.text.strip())
+        resp_text = response.text.strip()
+        if resp_text.startswith("```"):
+            resp_text = re.sub(r'^```(?:json)?\s*', '', resp_text)
+            resp_text = re.sub(r'\s*```$', '', resp_text)
+        parsed = json.loads(resp_text.strip())
         return {
             "target_platforms": parsed.get("target_platforms") or detected_platforms,
             "search_keywords": parsed.get("search_keywords") or search_keywords,
             "intent_summary": parsed.get("intent_summary") or default_analysis["intent_summary"]
         }
     except Exception as e:
-        print(f"Error in Gemini query analysis, using fallback: {e}")
         return default_analysis
 
 def dynamic_heuristic_tagger(raw_text: str) -> Dict[str, Any]:
     """Generates dynamic 2-3 word themes and contextual stages without rigid buckets."""
-    text_lower = raw_text.lower()
+    clean_raw = str(raw_text or "").strip()
+    if not clean_raw:
+        return {
+            "theme": "Unclear",
+            "journey_stage": "Active SIP Phase",
+            "what_they_did": "Unsure",
+            "who_they_are": "Retail investor",
+            "who_can_fix_it": "Fintech Platform",
+            "evidence_quote": "",
+            "model_name": "dynamic-heuristic-engine"
+        }
+
+    text_lower = clean_raw.lower()
 
     from backend.ingestion.hinglish import enrich_with_hinglish_context
     hinglish_info = enrich_with_hinglish_context(raw_text)
@@ -117,7 +139,7 @@ def dynamic_heuristic_tagger(raw_text: str) -> Dict[str, Any]:
         theme = "Restarting cancelled SIP"
     elif hinglish_info.get("detected"):
         theme = hinglish_info["theme"]
-    elif any(k in text_lower for k in ["loss", "negative", "down", "red", "crash", "bear", "dip", "nuksan", "ghata"]):
+    elif any(k in text_lower for k in ["loss", "negative", "down", "red", "crash", "bear", "dip", "drop", "dropped", "fall", "falling", "correction", "nuksan", "ghata"]):
         theme = "Market dip anxiety"
     elif any(k in text_lower for k in ["salary", "timing", "delayed", "month end"]):
         theme = "Salary date mismatch"
@@ -125,7 +147,7 @@ def dynamic_heuristic_tagger(raw_text: str) -> Dict[str, Any]:
         theme = "Autopay bounce penalty"
     elif any(k in text_lower for k in ["deducted", "cut", "money debit", "not credited", "units not", "paisa"]):
         theme = "Units allocation delay"
-    elif any(k in text_lower for k in ["pause", "no pause", "option to pause", "skip"]):
+    elif any(k in text_lower for k in ["no pause", "option to pause", "pause option", "cannot pause", "can't pause", "pause feature", "skip", "pause"]):
         theme = "Missing pause option"
     elif any(k in text_lower for k in ["switch", "transfer", "demat", "soa", "coin to", "groww to"]):
         theme = "SOA vs Demat switch"
@@ -236,11 +258,15 @@ def validate_and_repair_quote(evidence_quote: str, raw_text: str) -> str:
 
 def tag_post(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """Tag an individual post using Gemini API with dynamic extraction, falling back to dynamic heuristic."""
+    clean_raw = str(raw_text or "").strip()
+    if not clean_raw:
+        return dynamic_heuristic_tagger("")
+
     active_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
     if not active_key:
-        tag_data = dynamic_heuristic_tagger(raw_text)
-        tag_data["evidence_quote"] = validate_and_repair_quote(tag_data["evidence_quote"], raw_text)
+        tag_data = dynamic_heuristic_tagger(clean_raw)
+        tag_data["evidence_quote"] = validate_and_repair_quote(tag_data["evidence_quote"], clean_raw)
         return tag_data
 
     from backend.ingestion.hinglish import get_hinglish_context_hint
@@ -251,9 +277,9 @@ def tag_post(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         from google.genai import types
 
         client = genai.Client(api_key=active_key)
-        hinglish_hint = get_hinglish_context_hint(raw_text)
+        hinglish_hint = get_hinglish_context_hint(clean_raw)
         hint_str = f"\n\nContext Note: {hinglish_hint}" if hinglish_hint else ""
-        prompt = f"{SYSTEM_PROMPT}\n\nRAW TEXT TO ANALYZE:\n\"\"\"\n{raw_text}\n\"\"\"{hint_str}"
+        prompt = f"{SYSTEM_PROMPT}\n\nRAW TEXT TO ANALYZE:\n\"\"\"\n{clean_raw}\n\"\"\"{hint_str}"
 
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -265,6 +291,9 @@ def tag_post(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         )
 
         content = response.text.strip()
+        if content.startswith("```"):
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
         parsed = json.loads(content)
 
         theme = str(parsed.get("theme", "Retail investor friction")).strip()[:40]
@@ -274,7 +303,7 @@ def tag_post(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         who_they_are = str(parsed.get("who_they_are", "Retail investor")).strip()[:60]
         raw_evidence = str(parsed.get("evidence_quote", "")).strip()
 
-        evidence_quote = validate_and_repair_quote(raw_evidence, raw_text)
+        evidence_quote = validate_and_repair_quote(raw_evidence, clean_raw)
 
         return {
             "theme": theme,
@@ -286,8 +315,7 @@ def tag_post(raw_text: str, api_key: Optional[str] = None) -> Dict[str, Any]:
             "model_name": "gemini-2.5-flash"
         }
 
-    except Exception as e:
-        print(f"Gemini API dynamic tagging error, falling back to dynamic heuristic: {e}")
-        fallback = dynamic_heuristic_tagger(raw_text)
-        fallback["evidence_quote"] = validate_and_repair_quote(fallback["evidence_quote"], raw_text)
+    except Exception:
+        fallback = dynamic_heuristic_tagger(clean_raw)
+        fallback["evidence_quote"] = validate_and_repair_quote(fallback["evidence_quote"], clean_raw)
         return fallback

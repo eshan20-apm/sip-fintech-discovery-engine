@@ -1,11 +1,27 @@
+import sys
 import os
+import warnings
 from typing import List, Optional
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, HTTPException, Response, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# Suppress urllib3 LibreSSL warning on macOS
+try:
+    import urllib3
+    warnings.filterwarnings("ignore", category=urllib3.exceptions.NotOpenSSLWarning)
+except Exception:
+    pass
 
 # Load env variables
 load_dotenv()
@@ -18,7 +34,13 @@ from backend.ingestion.dedup import deduplicate_posts
 from backend.tagger.llm_tagger import tag_post, analyze_research_query
 from backend.exporter import export_posts_to_excel
 
-app = FastAPI(title="SIP & Fintech Investor Discovery Engine API", version="2.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize SQLite database and ensure tables exist on startup
+    init_db()
+    yield
+
+app = FastAPI(title="SIP & Fintech Investor Discovery Engine API", version="2.1.0", lifespan=lifespan)
 
 # CORS middleware for React client
 app.add_middleware(
@@ -28,11 +50,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Startup event to ensure SQLite tables exist
-@app.on_event("startup")
-def on_startup():
-    init_db()
 
 class ResearchQueryRequest(BaseModel):
     query: str
@@ -87,13 +104,17 @@ def conduct_research(req: ResearchQueryRequest):
     4. Tags each raw comment dynamically (2-3 word theme, dynamic stage, dynamic action)
     5. Retrieves top results using Hybrid RAG (Dense Semantic Vector + Sparse BM25 via RRF)
     """
-    query_text = req.query.strip()
+    query_text = (req.query or "").strip()
     if not query_text:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    effective_limit = req.limit if (req.limit and req.limit > 0) else 25
 
     # Step 1: LLM query analysis to derive search intent, platforms, and keywords
     analysis = analyze_research_query(query_text)
     target_platforms = req.platforms or analysis.get("target_platforms") or ["Groww", "Zerodha", "AngelOne"]
+    if "all" in target_platforms:
+        target_platforms = ["Groww", "Zerodha", "AngelOne", "INDmoney", "PaytmMoney"]
     search_keywords = analysis.get("search_keywords") or [query_text]
     sources_to_query = req.sources or ["playstore", "reddit", "youtube"]
 
@@ -106,7 +127,7 @@ def conduct_research(req: ResearchQueryRequest):
                 platform=p,
                 query=query_text,
                 keywords=search_keywords,
-                count=req.limit
+                count=effective_limit
             )
             raw_posts.extend(p_reviews)
 
@@ -114,7 +135,7 @@ def conduct_research(req: ResearchQueryRequest):
     if "reddit" in sources_to_query:
         reddit_results = fetch_reddit_posts(
             query=" ".join(search_keywords[:2]) if search_keywords else query_text,
-            limit=req.limit
+            limit=effective_limit
         )
         raw_posts.extend(reddit_results)
 
@@ -122,7 +143,7 @@ def conduct_research(req: ResearchQueryRequest):
     if "youtube" in sources_to_query:
         youtube_results = fetch_youtube_comments(
             query=query_text,
-            limit=req.limit
+            limit=effective_limit
         )
         raw_posts.extend(youtube_results)
 
@@ -140,11 +161,11 @@ def conduct_research(req: ResearchQueryRequest):
     # Step 7: Hybrid RAG Search (Dense Vector + Sparse BM25 via RRF)
     results = hybrid_searcher.search(
         query=query_text,
-        limit=req.limit * 2
+        limit=effective_limit * 2
     )
 
     if not results:
-        results = fetch_posts(limit=req.limit * 2)
+        results = fetch_posts(limit=effective_limit * 2)
 
     return {
         "query": query_text,
@@ -226,28 +247,35 @@ def post_seed_golden():
 @app.post("/api/fetch-live")
 def fetch_live_data(req: FetchLiveRequest):
     """Direct multi-platform ingestion trigger across specified apps and sources."""
+    sources = req.sources or ["playstore", "reddit", "youtube"]
+    platforms = req.platforms or ["Groww", "Zerodha", "AngelOne", "INDmoney", "PaytmMoney"]
+    if "all" in platforms:
+        platforms = ["Groww", "Zerodha", "AngelOne", "INDmoney", "PaytmMoney"]
+    limit_count = req.limit_per_source if (req.limit_per_source and req.limit_per_source > 0) else 20
+    query_str = req.query or "SIP investor behavior"
+
     raw_posts = []
 
-    if "playstore" in req.sources:
-        for p in req.platforms:
+    if "playstore" in sources:
+        for p in platforms:
             reviews_list = fetch_playstore_reviews(
                 platform=p,
-                query=req.query,
-                count=req.limit_per_source
+                query=query_str,
+                count=limit_count
             )
             raw_posts.extend(reviews_list)
 
-    if "reddit" in req.sources:
+    if "reddit" in sources:
         reddit_list = fetch_reddit_posts(
-            query=req.query,
-            limit=req.limit_per_source
+            query=query_str,
+            limit=limit_count
         )
         raw_posts.extend(reddit_list)
 
-    if "youtube" in req.sources:
+    if "youtube" in sources:
         youtube_list = fetch_youtube_comments(
-            query=req.query,
-            limit=req.limit_per_source
+            query=query_str,
+            limit=limit_count
         )
         raw_posts.extend(youtube_list)
 
@@ -273,7 +301,8 @@ def fetch_live_data(req: FetchLiveRequest):
 def set_golden_tag(req: GoldenTagRequest):
     """Save PM override tag to the golden truth benchmark table."""
     try:
-        updated = save_golden_tag(req.dict())
+        tag_dict = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+        updated = save_golden_tag(tag_dict)
         return {"success": True, "golden_tag": updated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -285,14 +314,32 @@ def export_filtered_posts(
     source: Optional[str] = Query(None),
     status: Optional[str] = Query("all")
 ):
-    posts = fetch_posts(
-        search_query=search_query,
-        platform=platform,
-        source=source,
-        status=status,
-        limit=1000,
-        offset=0
-    )
+    if search_query and search_query.strip():
+        posts = hybrid_searcher.search(
+            query=search_query.strip(),
+            platform=platform,
+            source=source,
+            status=status,
+            limit=1000
+        )
+        if not posts:
+            posts = fetch_posts(
+                search_query=search_query,
+                platform=platform,
+                source=source,
+                status=status,
+                limit=1000,
+                offset=0
+            )
+    else:
+        posts = fetch_posts(
+            search_query=search_query,
+            platform=platform,
+            source=source,
+            status=status,
+            limit=1000,
+            offset=0
+        )
     excel_bytes = export_posts_to_excel(posts)
     return Response(
         content=excel_bytes,
@@ -377,5 +424,9 @@ if os.path.exists(FRONTEND_DIST):
         if os.path.exists(index_file):
             return FileResponse(index_file)
         return {"detail": "Frontend index.html not found"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
 
 

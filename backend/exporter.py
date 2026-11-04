@@ -1,8 +1,17 @@
+import sys
+import os
 import io
 from typing import List, Dict, Any, Optional
 import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+# Ensure project root is in sys.path
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from backend.database import get_db
 from backend.analytics.benchmark_eval import get_evaluation_metrics
 
