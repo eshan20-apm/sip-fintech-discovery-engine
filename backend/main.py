@@ -406,11 +406,17 @@ if os.path.exists(FRONTEND_DIST):
     if os.path.exists(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
+    INDEX_HEADERS = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    }
+
     @app.get("/")
     async def serve_root():
         index_file = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.exists(index_file):
-            return FileResponse(index_file)
+            return FileResponse(index_file, headers=INDEX_HEADERS)
         return {"detail": "Frontend index.html not found"}
 
     @app.get("/{full_path:path}")
@@ -422,7 +428,7 @@ if os.path.exists(FRONTEND_DIST):
             return FileResponse(file_path)
         index_file = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.exists(index_file):
-            return FileResponse(index_file)
+            return FileResponse(index_file, headers=INDEX_HEADERS)
         return {"detail": "Frontend index.html not found"}
 
 if __name__ == "__main__":

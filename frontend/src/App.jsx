@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Layers, Key, Check, ShieldCheck, Activity } from 'lucide-react';
+import { Layers, Key, Check, ShieldCheck, Activity, Sparkles } from 'lucide-react';
 import BiasBanner from './components/BiasBanner';
 import MetricsBar from './components/MetricsBar';
 import ResearchPromptBar from './components/ResearchPromptBar';
@@ -291,7 +291,7 @@ export default function App() {
         />
 
         {/* Structured Investor Feedback Feed - only shown when user has put some query */}
-        {hasSearched && (
+        {hasSearched ? (
           <PostsTable 
             posts={posts}
             selectedPost={selectedPost}
@@ -299,6 +299,46 @@ export default function App() {
             isLoading={isLoading}
             activeQuery={activeQuery}
           />
+        ) : (
+          <div className="discovery-starter-container">
+            <div className="starter-header">
+              <Sparkles size={24} style={{ color: '#818cf8', marginBottom: '4px' }} />
+              <h3>Ready for Discovery</h3>
+              <p>Type an open-ended research question above or select an investigation area below to search and synthesize live retail investor feedback.</p>
+            </div>
+
+            <div className="starter-grid">
+              <div 
+                className="starter-card"
+                onClick={() => handleRunResearch("Why do beginners cancel SIPs during market downturns?")}
+              >
+                <div className="starter-badge badge-rose">📉 Market Drops</div>
+                <h4>SIP Cancellation Anxiety</h4>
+                <p>"Why do beginners cancel SIPs during market downturns?"</p>
+                <span className="starter-action">Explore feedback →</span>
+              </div>
+
+              <div 
+                className="starter-card"
+                onClick={() => handleRunResearch("Why do HDFC or SBI bank autopay mandates fail on Zerodha Coin?")}
+              >
+                <div className="starter-badge badge-amber">💳 Autopay & Banks</div>
+                <h4>Mandate & Bounce Failures</h4>
+                <p>"Why do HDFC or SBI bank autopay mandates fail on Zerodha Coin?"</p>
+                <span className="starter-action">Explore feedback →</span>
+              </div>
+
+              <div 
+                className="starter-card"
+                onClick={() => handleRunResearch("What friction happens when switching from Groww to Zerodha Coin?")}
+              >
+                <div className="starter-badge badge-indigo">🔄 Platform Switch</div>
+                <h4>Broker Migration & Demat</h4>
+                <p>"What friction happens when switching from Groww to Zerodha Coin?"</p>
+                <span className="starter-action">Explore feedback →</span>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 
