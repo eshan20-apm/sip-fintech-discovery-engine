@@ -10,7 +10,8 @@ import EvaluationDashboardModal from './components/EvaluationDashboardModal';
 export default function App() {
   const [posts, setPosts] = useState([]);
   const [stats, setStats] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -59,9 +60,8 @@ export default function App() {
     }
   }, [activeQuery, platform, status]);
 
-  // Initial load & global keyboard shortcut handlers
+  // Initial load: fetch stats only, do not show feedback feed until user queries
   useEffect(() => {
-    loadPosts();
     loadStats();
 
     const handleKeyDown = (e) => {
@@ -73,11 +73,12 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [loadStats]);
 
   // Conversational Research Query Handler (ChatGPT / Gemini style)
   const handleRunResearch = async (queryText) => {
     setIsLoading(true);
+    setHasSearched(true);
     setActiveQuery(queryText);
     try {
       const payload = {
@@ -111,12 +112,16 @@ export default function App() {
 
   const handlePlatformChange = (newPlatform) => {
     setPlatform(newPlatform);
-    loadPosts(newPlatform, status);
+    if (hasSearched) {
+      loadPosts(newPlatform, status);
+    }
   };
 
   const handleStatusChange = (newStatus) => {
     setStatus(newStatus);
-    loadPosts(platform, newStatus);
+    if (hasSearched) {
+      loadPosts(platform, newStatus);
+    }
   };
 
   const handleSelectPost = (post) => {
@@ -285,14 +290,16 @@ export default function App() {
           queryAnalysis={queryAnalysis}
         />
 
-        {/* Structured Data Grid with Dynamic Theme (2-3 words), Journey Stage, and Action */}
-        <PostsTable 
-          posts={posts}
-          selectedPost={selectedPost}
-          onSelectPost={handleSelectPost}
-          isLoading={isLoading}
-          activeQuery={activeQuery}
-        />
+        {/* Structured Investor Feedback Feed - only shown when user has put some query */}
+        {hasSearched && (
+          <PostsTable 
+            posts={posts}
+            selectedPost={selectedPost}
+            onSelectPost={handleSelectPost}
+            isLoading={isLoading}
+            activeQuery={activeQuery}
+          />
+        )}
       </main>
 
       {/* Slide-Over Detail Drawer with Verbatim Quote Highlight & Golden Benchmark Tag Editor */}
@@ -308,7 +315,9 @@ export default function App() {
         isOpen={showEvalModal}
         onClose={() => setShowEvalModal(false)}
         onRefreshData={() => {
-          loadPosts();
+          if (hasSearched) {
+            loadPosts();
+          }
           loadStats();
         }}
       />
