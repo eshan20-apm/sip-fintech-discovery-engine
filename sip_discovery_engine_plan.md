@@ -84,29 +84,36 @@ When a researcher submits a question:
 
 ## 3. UI Design Specification
 
-* **Primary Screen**:
-  * Persistent Research Bias Caution Banner.
-  * **Central Prompt Space**: Prominent, clean query bar (similar to Gemini / ChatGPT) with quick-prompt chips for common behavioral research questions.
-  * Quick metrics: Total Ingested Posts, Golden Benchmark Verified count, Top Themes.
-  * **Structured Data Grid**:
+* **Initial Launch Screen (Clutter-Free)**:
+  * Persistent Research Complainant Bias Caution Banner.
+  * Real-Time Metrics Strip: Ingested Public Posts, Golden Benchmark Verified count, Reliability (Cohen's κ), and Top Platform Volume.
+  * **Central Prompt Space**: Prominent query bar (inspired by ChatGPT / Gemini) with suggested research prompt chips.
+  * **Ready for Discovery Starter Workspace**: 3 interactive investigation cards (*SIP Cancellation Anxiety*, *Mandate & Bounce Failures*, *Broker Migration & Demat*) guiding new researchers.
+  * **Hidden on Launch**: The large 100-comment data grid is hidden initially to prevent visual clutter and maintain a fast, conversational workflow.
+* **Active Research Screen (Prompt-Revealed)**:
+  * **Structured Data Grid**: Reveals dynamically once an inquiry is submitted.
     * Columns: Status (Golden vs. AI Tagged), Platform, Source, Date, Raw Comment, Dynamic Theme (2–3 words), Dynamic Journey Stage, Action Taken.
-    * Removed: Static categorical dropdown filters under the query bar (`theme`, `stage`, `action`, `fixer`).
-  * **Excel Export Button**: Downloads active research results.
+    * Status Indicator: `⚡ Hybrid RAG Active` combining semantic vectors and lexical search via RRF.
+  * **Excel Export Button**: Single-click multi-tab `.xlsx` download.
 * **Slide-Over Detail Drawer**:
   * Full raw text with verbatim evidence highlighted in yellow/amber `<mark>`.
   * Clickable link to the original post.
   * Golden Benchmark editor allowing PMs to refine the dynamic tags and add research rationale.
+* **Evaluation Dashboard Modal**:
+  * Cohen's Kappa score gauge with Landis & Koch interpretation.
+  * Interactive Theme Confusion Matrix with diagonal match highlighting.
+  * Disagreement Inspector with side-by-side comparison cards and one-click resolution.
 
 ---
 
 ## 4. Implementation Roadmap
 
-### Phase 1: Dynamic Prompt-Driven Engine & Clean UI
-* Implement query analyzer LLM that interprets free-form research questions and extracts search parameters.
-* Refactor LLM tagger to dynamically generate 2–3 word themes, dynamic journey stages, and actions directly from raw comments.
-* Redesign UI to feature central prompt space, removing static dropdown filters.
-* Update table and slide-over detail panel to present dynamic tags.
-* Ensure Excel export reflects the dynamic schema.
+### Phase 1: Dynamic Prompt-Driven Engine & Clean UI (Completed)
+* Implemented query analyzer LLM that interprets free-form research questions and extracts search parameters.
+* Refactored LLM tagger to dynamically generate 2–3 word themes, dynamic journey stages, and actions directly from raw comments.
+* Redesigned UI to feature central prompt space, removing static dropdown filters.
+* Updated table and slide-over detail panel to present dynamic tags with verbatim quote verification.
+* Ensured Excel export reflects the dynamic schema.
 
 ### Phase 2: Multi-Platform Ingestion & YouTube Comments (Completed)
 * Expanded scrapers to Groww, Zerodha Coin, Angel One, INDmoney, and Paytm Money.
@@ -116,10 +123,18 @@ When a researcher submits a question:
 
 ### Phase 3: Semantic Hybrid Retrieval & Golden Benchmark Analytics (Completed)
 * Integrated Hybrid RAG combining dense TF-IDF semantic vector similarity with SQLite FTS5 BM25 lexical search via RRF.
-* Built full evaluation dashboard computing Cohen's Kappa (κ), Theme Confusion Matrix, and the Disagreement Inspector.
+* Built full evaluation dashboard computing Cohen's Kappa (κ = 0.665, "Substantial Agreement"), Theme Confusion Matrix, and the Disagreement Inspector.
 * Pre-seeded verified Golden Benchmark set and added interactive resolution actions.
 
 ### Phase 4: Google Stitch UI Polish & Delivery (Completed)
 * Multi-tab executive Excel export (Active Feed, Golden Benchmark, Kappa Metrics).
 * Google Stitch design system polish, micro-animations, keyboard accessibility (Escape listener).
 * Packaged master launch script (`run.sh`) and comprehensive documentation (`README.md`).
+
+### Phase 5: Production Hardening, Zero-Error Assurance & Vercel Cloud (Completed)
+* **Type Safety & Diagnostics**: Full typing with `TypedDict` and broadened text cleaners; resolved Pyright interpreter bindings via `.vscode/settings.json` and `pyrightconfig.json`.
+* **Database Resilience**: Configured SQLite WAL mode (`PRAGMA journal_mode=WAL;`), foreign keys, 30s busy timeout, self-healing FTS5 sync check on startup, and SQL `LIKE` fallback on malformed FTS tokens.
+* **Conversational UX Refinement**: Replaced the cluttered startup table with the "Ready for Discovery" workspace; reveals the structured feed only upon user query.
+* **Automated Test Suite**: 31 unit and integration tests under `tests/` covering API, database, evaluation, exporter, ingestion, retrieval, and tagging.
+* **Universal Cross-Platform Launchers**: Created `run.py` (macOS, Windows, Linux) and `run.bat` (Windows).
+* **Vercel Cloud Deployment & Cache-Busting**: Configured serverless ASGI request routing and `Cache-Control: no-cache, no-store, must-revalidate` for `index.html` to eliminate stale asset 404s.

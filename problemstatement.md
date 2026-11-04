@@ -39,12 +39,15 @@ The **SIP Discovery Engine** addresses this gap by providing an end-to-end quali
 * **Universal Investor Scope**: Studies investor behavior across all experience levels (first-timers to seasoned DIY investors).
 * **Cross-Platform Coverage**: Ingests and tags feedback across all major Indian fintech apps (Groww, Zerodha Coin, Angel One, INDmoney, Kuvera, Paytm Money, etc.).
 * **100% Free Live Data**: Utilizes public APIs and scrapers (Google Play Store, Reddit public JSON, YouTube comments) without requiring pre-ingested fixed datasets from the user.
-* **Standardized 6-Field Enrichment**:
-  1. *Theme* (e.g., Income timing, Unnoticed failed autopay, Expectation gap, Cancel instead of pause, Platform UX, Charges/Taxes).
-  2. *Journey Stage* (e.g., Before starting, First instalment, Months 2 to 6, Experienced).
-  3. *What They Did* (e.g., Continued, Paused, Reduced, Stopped, Switched Platform).
-  4. *Who They Are* (Persona, income type, experience level).
-  5. *Who Can Fix It* (Fintech Platform, Bank or AMC, User's own life, Regulator).
-  6. *Evidence* (Exact verbatim quote substring + verified source URL).
-* **Transparent Golden Set & Evaluation**: Allows instant manual tag correction, calculating Agreement %, Cohen's Kappa, and confusion matrices.
-* **Minimalist PM Interface**: Single-screen data grid with slide-over Detail Panel, instant filtering, and one-click Excel export.
+* **Standardized Dynamic 6-Field Enrichment (No Rigid Buckets)**:
+  1. *Dynamic Theme* (Concise 2–3 words derived directly from context, e.g., *Market dip anxiety*, *Autopay bounce penalty*, *SOA vs Demat switch*, *Missing pause option*).
+  2. *Dynamic Journey Stage* (Inferred investor stage, e.g., *Onboarding / KYC*, *1st Month Beginner*, *Months 2-6 Market Dip*, *Platform Migration*, *Exit / Withdrawal*).
+  3. *Dynamic Action Taken* (Actual action, e.g., *Cancelled SIP*, *Paused indefinitely*, *Switched Platform*, *Continued despite dip*, *Seeking forum advice*).
+  4. *Who They Are* (Persona, income level, or experience level).
+  5. *Who Can Fix It* (Fintech Platform, AMC / Registrar, NPCI / Bank, Investor Education).
+  6. *Evidence Quote* (Exact verbatim quote substring + verified source URL with zero hallucination guarantee).
+* **Conversational Discovery & Minimalist Interface**:
+  * Prompt-driven entry space (ChatGPT / Perplexity style) featuring an initial **"Ready for Discovery" Starter Workspace** with prompt chips and investigation cards.
+  * The **Structured Investor Feedback Feed** reveals dynamically upon submitting an inquiry, eliminating clutter on startup.
+* **Transparent Golden Set & Reliability Suite**: Allows instant manual tag correction, computing observed agreement %, multi-field Cohen's Kappa ($\kappa$), interactive confusion matrix, and Disagreement Inspector.
+* **Production & Deployment Reliability**: Built with cross-platform launchers (`run.py`, `run.bat`, `run.sh`), comprehensive unit test coverage, offline scraper resilience, and Vercel cloud serverless deployment compatibility.

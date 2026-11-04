@@ -8,6 +8,7 @@
 | **Phase 2** | **Multi-Platform Ingestion & YouTube** | Multi-app scrapers (Groww, Zerodha, Angel One, INDmoney, Kuvera), YouTube comment scraper, deduplication engine, and Hinglish normalizer. | Broad cross-platform dataset accumulation |
 | **Phase 3** | **Hybrid RAG & Golden Benchmark** | SQLite FTS5 + local vector embeddings, Cohen's Kappa evaluation dashboard, confusion matrix, and Disagreement Inspector. | Complete semantic retrieval & active evaluation |
 | **Phase 4** | **Google Stitch UI Polish & Delivery** | Google Stitch UI design implementation, pixel-perfect layout, transitions, multi-tab Excel export, and deployment documentation. | Production-ready research workbench |
+| **Phase 5** | **Production Hardening, Zero-Error Assurance & Vercel Cloud** | Type safety, Pyright interpreter binding, SQLite WAL concurrency, self-healing FTS5 sync check, 31-test suite, cross-platform launchers (`run.py`, `run.bat`), "Ready for Discovery" workspace, and Vercel serverless cache-busting. | Enterprise-ready public release & cloud deployment |
 
 ---
 
@@ -162,3 +163,53 @@ Elevate the research workbench to executive presentation grade with Google Stitc
 - [x] `run.sh` master script starts both backend and frontend concurrently with graceful exit handling.
 - [x] Complete `README.md` provides end-to-end setup and methodology documentation.
 - [x] Production build passes cleanly (`npm run build` in 116ms with 0 errors).
+
+---
+
+## Phase 5: Production Hardening, Zero-Error Assurance & Vercel Cloud (Completed)
+
+### Objective
+Guarantee that external researchers and public open-source users running the workbench on any operating system (macOS, Windows, Linux) or accessing the hosted cloud application on Vercel experience zero crashes, zero unhandled errors, zero language server squigglies, and a smooth, conversational user experience.
+
+### 5.1 Type Safety & Language Server Diagnostics
+* **Interpreter Synchronization**: Added [`.vscode/settings.json`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/.vscode/settings.json), [`pyrightconfig.json`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/pyrightconfig.json), and a root `.venv` symlink to prevent IDE language servers from querying system macOS Python.
+* **Typed Scraper Interfaces**: Implemented `TypedDict` models (`CuratedReview`, `CuratedRedditPost`, `FintechVideo`, `CuratedYoutubeComment`) across scrapers to eliminate inferred `int | str` union typing mismatches.
+* **Text Cleaner Robustness**: Broadened `clean_text` in [`normalizer.py`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/backend/ingestion/normalizer.py) to accept `Any`, safely handling integer scores and `None` inputs.
+
+### 5.2 Database Self-Healing & Concurrency Hardening
+* **WAL Mode & Concurrency**: Enabled `PRAGMA journal_mode=WAL;` and `PRAGMA foreign_keys=ON;` with 30-second busy timeout in [`database.py`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/backend/database.py).
+* **Self-Healing FTS5 Sync**: On `init_db()`, compares record counts between `posts` and `posts_fts`; automatically restores and rebuilds full-text search index if discrepancies are detected.
+* **FTS5 Fault-Tolerant Search Fallback**: Automatically catches `sqlite3.OperationalError` from malformed search punctuation/syntax and falls back cleanly to SQL `LIKE ?` search.
+
+### 5.3 Conversational UX Refinement & Discovery Starter
+* **Clean Launch Workspace**: Removed the cluttered 100-comment data grid on initial launch, focusing the screen on the conversational prompt bar.
+* **"Ready for Discovery" Workspace**: Rendered 3 interactive starter investigation cards (*SIP Cancellation Anxiety*, *Mandate & Bounce Failures*, *Broker Migration & Demat*) when no query is active.
+* **Query-Triggered Feed Reveal**: The Structured Investor Feedback Feed displays dynamically only after an inquiry is entered or a starter card is clicked.
+
+### 5.4 Cross-Platform Launchers & Packaging
+* **Universal Launcher ([run.py](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/run.py))**: Platform-agnostic Python runner supporting macOS, Linux, and Windows. Automatically provisions virtual environments, installs requirements, builds frontend dependencies, and runs FastAPI + Vite concurrently.
+* **Native Windows Launcher ([run.bat](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/run.bat))**: Dedicated batch script for Windows users.
+* **Native Bash Launcher ([run.sh](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/run.sh))**: Hardened POSIX launcher with automated dependency checks.
+
+### 5.5 Comprehensive Automated Test Suite
+* Built 31 unit and integration tests under [`tests/`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/tests):
+  * `test_api.py`: FastAPI endpoints, health checks, search parameters, Excel export, and settings.
+  * `test_database.py`: CRUD operations, stats aggregation, golden overrides, and FTS5 punctuation resilience.
+  * `test_evaluation.py`: Cohen's Kappa chance calculation, confusion matrix structure, and disagreement resolution.
+  * `test_exporter.py`: Multi-tab openpyxl workbook structure and columns.
+  * `test_ingestion.py`: Deduplication math, Hinglish normalization, spam link rejection, and scrapers.
+  * `test_retrieval.py`: Hybrid RAG fusion and TF-IDF semantic scoring.
+  * `test_tagger.py`: Zero-hallucination verbatim quote assertions and heuristic categorization.
+
+### 5.6 Vercel Serverless Cloud Deployment & Cache-Busting
+* **Request Forwarding Middleware**: Intercepts `x-matched-path` in `backend/main.py` for seamless ASGI routing on Vercel.
+* **Cache-Busting HTTP Headers**: Added `Cache-Control: no-cache, no-store, must-revalidate` to `index.html` to eliminate browser caching of stale JavaScript hashes.
+* **Cold-Start Persistence**: Safely hydrates the SQLite database into `/tmp/` in serverless execution environments.
+
+### 5.7 Verification & Testing Criteria
+- [x] Zero language server / type checker errors across all backend modules.
+- [x] All 31 automated tests pass cleanly (`Ran 31 tests in 0.415s - OK`).
+- [x] Database self-healing automatically synchronizes FTS5 records.
+- [x] Startup screen displays the clean "Ready for Discovery" workspace; reveals the structured feed only upon research prompt execution.
+- [x] Cross-platform launchers (`run.py`, `run.bat`, `run.sh`) successfully orchestrate backend and frontend.
+- [x] Live Vercel deployment ([https://sip-fintech-discovery-engine.vercel.app](https://sip-fintech-discovery-engine.vercel.app)) serves the latest build with cache-busting headers.
