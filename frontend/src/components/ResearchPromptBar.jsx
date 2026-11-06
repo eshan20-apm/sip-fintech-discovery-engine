@@ -16,7 +16,9 @@ export default function ResearchPromptBar({
   onPlatformChange,
   status,
   onStatusChange,
+  onExport,
   onExportExcel,
+  onExportCsv,
   isExporting,
   queryAnalysis
 }) {
@@ -127,16 +129,28 @@ export default function ResearchPromptBar({
           ))}
         </div>
 
-        <button 
-          type="button"
-          className="btn-secondary"
-          onClick={onExportExcel}
-          disabled={isExporting}
-          title="Export current research view to Excel (.xlsx)"
-        >
-          <Download size={15} />
-          <span>{isExporting ? 'Exporting...' : 'Download Excel'}</span>
-        </button>
+        <div className="export-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button 
+            type="button"
+            className="btn-secondary"
+            onClick={() => onExportExcel ? onExportExcel('xlsx') : onExport?.('xlsx')}
+            disabled={isExporting}
+            title="Download multi-tab formatted workbook (.xlsx) for Mac Numbers, Google Sheets & MS Excel"
+          >
+            <Download size={14} />
+            <span>{isExporting ? 'Exporting...' : 'Excel (.xlsx)'}</span>
+          </button>
+          <button 
+            type="button"
+            className="btn-secondary"
+            onClick={() => onExportCsv ? onExportCsv() : onExport?.('csv')}
+            disabled={isExporting}
+            title="Download universal UTF-8 BOM CSV (.csv) for Mac Numbers, Google Sheets & MS Excel"
+          >
+            <Download size={14} />
+            <span>CSV (.csv)</span>
+          </button>
+        </div>
       </div>
     </div>
   );

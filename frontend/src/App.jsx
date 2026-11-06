@@ -179,29 +179,54 @@ export default function App() {
     }
   };
 
-  const handleExportExcel = async () => {
+  const handleExport = async (format = 'xlsx') => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
       if (activeQuery.trim()) params.append('search_query', activeQuery.trim());
       if (platform !== 'all') params.append('platform', platform);
       if (status !== 'all') params.append('status', status);
+      params.append('format', format);
+
+      const downloadFilename = `sip_discovery_research_${new Date().toISOString().slice(0, 10)}.${format}`;
 
       const response = await fetch(`/api/export?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to generate export');
 
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
+      const blobData = await response.blob();
+      const mimeType = format === 'csv'
+        ? 'text/csv;charset=utf-8;'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+      const fileBlob = new Blob([blobData], { type: mimeType });
+      const downloadUrl = window.URL.createObjectURL(fileBlob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = downloadUrl;
-      a.download = `sip_discovery_research_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.setAttribute('download', downloadFilename);
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      window.URL.revokeObjectURL(downloadUrl);
+
+      // Delay object URL revocation by 60 seconds so browser download manager finishes saving to disk
+      setTimeout(() => {
+        try {
+          if (a.parentNode) {
+            a.parentNode.removeChild(a);
+          }
+          window.URL.revokeObjectURL(downloadUrl);
+        } catch (e) {
+          // ignore
+        }
+      }, 60000);
     } catch (err) {
-      console.error('Export error:', err);
-      alert('Failed to export Excel file. Please check backend connection.');
+      console.error('Export error, triggering direct browser download fallback:', err);
+      // Fallback: direct browser navigation triggers native Content-Disposition download
+      const params = new URLSearchParams();
+      if (activeQuery.trim()) params.append('search_query', activeQuery.trim());
+      if (platform !== 'all') params.append('platform', platform);
+      if (status !== 'all') params.append('status', status);
+      params.append('format', format);
+      window.location.href = `/api/export?${params.toString()}`;
     } finally {
       setIsExporting(false);
     }
@@ -285,7 +310,9 @@ export default function App() {
           onPlatformChange={handlePlatformChange}
           status={status}
           onStatusChange={handleStatusChange}
-          onExportExcel={handleExportExcel}
+          onExport={handleExport}
+          onExportExcel={() => handleExport('xlsx')}
+          onExportCsv={() => handleExport('csv')}
           isExporting={isExporting}
           queryAnalysis={queryAnalysis}
         />

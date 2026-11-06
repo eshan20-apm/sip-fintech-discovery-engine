@@ -160,13 +160,17 @@ Click the **Golden Benchmark (κ)** button in the top navigation bar to access t
 
 ---
 
-## 📥 Multi-Tab Excel Export
+## 📥 Universal Spreadsheet Export (Excel, Mac Numbers & Google Sheets)
 
-Click **Download Excel** in the workbench to generate an executive `.xlsx` file formatted with `openpyxl`:
+The workbench provides one-click export into universally compatible formats designed to open seamlessly across **Mac Numbers**, **Google Sheets**, and **Microsoft Excel**:
 
-1. **Sheet 1 — Active Research Feed**: Filtered and semantically ranked posts matching the active query (Platform, Source, Date, Raw Feedback, Dynamic Theme, Journey Stage, Action Taken, Persona, Responsible Entity, Verbatim Quote, Link).
-2. **Sheet 2 — Golden Benchmark Set**: All hand-verified golden benchmark records with PM rationales and notes.
-3. **Sheet 3 — Reliability & Kappa Metrics**: Complete statistical summary of Cohen's Kappa score, observed agreement rates, and field-level accuracies.
+1. **Excel Workbook (`.xlsx`)**: Formatted multi-tab executive workbook generated via `openpyxl`:
+   * **Sheet 1 — Active Research Feed**: Filtered and semantically ranked posts matching the active query (Platform, Source, Date, Raw Feedback, Dynamic Theme, Journey Stage, Action Taken, Persona, Responsible Entity, Verbatim Quote, Link).
+   * **Sheet 2 — Golden Benchmark Set**: All hand-verified golden benchmark records with PM rationales and notes.
+   * **Sheet 3 — Reliability & Kappa Metrics**: Complete statistical summary of Cohen's Kappa score, observed agreement rates, and field-level accuracies.
+   * *Sanitization Guarantee*: Strips all illegal XML control characters (`\x00`–`\x1f`) ensuring Apple Numbers and Excel open the file without corruption warnings.
+2. **Universal CSV (`.csv`)**: Raw structured export encoded with a **UTF-8 Byte Order Mark (BOM: `\ufeff`)**, allowing Apple Numbers, Google Sheets, and Excel on macOS, Windows, and Linux to instantly auto-detect UTF-8 character encoding, currency symbols (₹), and Hinglish accents with zero wizard imports.
+3. **Browser Download Resilience**: Employs delayed object URL lifecycle cleanup (`setTimeout 60s`) and direct browser navigation fallbacks to guarantee downloads complete without generating broken `.bin` or truncated files across Safari and Chrome.
 
 ---
 

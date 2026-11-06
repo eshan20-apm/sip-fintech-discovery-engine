@@ -192,11 +192,11 @@ Guarantee that external researchers and public open-source users running the wor
 * **Native Bash Launcher ([run.sh](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/run.sh))**: Hardened POSIX launcher with automated dependency checks.
 
 ### 5.5 Comprehensive Automated Test Suite
-* Built 31 unit and integration tests under [`tests/`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/tests):
-  * `test_api.py`: FastAPI endpoints, health checks, search parameters, Excel export, and settings.
+* Built 33 unit and integration tests under [`tests/`](file:///Users/eshan/Documents/NestLeap_graduation%20project/Attempt%202/SIP_AI_engine_build/tests):
+  * `test_api.py`: FastAPI endpoints, health checks, search parameters, dual-format export (.xlsx and .csv), and settings.
   * `test_database.py`: CRUD operations, stats aggregation, golden overrides, and FTS5 punctuation resilience.
   * `test_evaluation.py`: Cohen's Kappa chance calculation, confusion matrix structure, and disagreement resolution.
-  * `test_exporter.py`: Multi-tab openpyxl workbook structure and columns.
+  * `test_exporter.py`: Multi-tab openpyxl workbook structure, UTF-8 BOM CSV export, and XML-illegal character control filtering.
   * `test_ingestion.py`: Deduplication math, Hinglish normalization, spam link rejection, and scrapers.
   * `test_retrieval.py`: Hybrid RAG fusion and TF-IDF semantic scoring.
   * `test_tagger.py`: Zero-hallucination verbatim quote assertions and heuristic categorization.
@@ -206,10 +206,17 @@ Guarantee that external researchers and public open-source users running the wor
 * **Cache-Busting HTTP Headers**: Added `Cache-Control: no-cache, no-store, must-revalidate` to `index.html` to eliminate browser caching of stale JavaScript hashes.
 * **Cold-Start Persistence**: Safely hydrates the SQLite database into `/tmp/` in serverless execution environments.
 
-### 5.7 Verification & Testing Criteria
+### 5.7 Universal Spreadsheet Export (Mac Numbers, Google Sheets & MS Excel)
+* **XML Control Character Sanitization**: Added `clean_cell_val()` in `backend/exporter.py` stripping illegal XML control characters (`\x00`–`\x1f`) via `ILLEGAL_CHARACTERS_RE` to eliminate corruption errors when opening in Apple Numbers or Microsoft Excel.
+* **Dual Format Support**: Extended `/api/export` in `backend/main.py` to support both formatted Excel (`format=xlsx`) and universal CSV (`format=csv`).
+* **UTF-8 Byte Order Mark (BOM)**: Added `\ufeff` to CSV generation so Apple Numbers, Google Sheets, and Excel automatically recognize UTF-8 characters, rupee signs (₹), and Hinglish terms.
+* **Client-Side Blob Lifecycle Resilience**: Fixed synchronous `URL.revokeObjectURL()` in `frontend/src/App.jsx` with a 60-second delayed cleanup and direct browser navigation fallback, eliminating truncated `.bin` or `.txt` downloads on Safari and Chrome.
+
+### 5.8 Verification & Testing Criteria
 - [x] Zero language server / type checker errors across all backend modules.
-- [x] All 31 automated tests pass cleanly (`Ran 31 tests in 0.415s - OK`).
+- [x] All 33 automated tests pass cleanly (`Ran 33 tests in 0.413s - OK`).
 - [x] Database self-healing automatically synchronizes FTS5 records.
 - [x] Startup screen displays the clean "Ready for Discovery" workspace; reveals the structured feed only upon research prompt execution.
 - [x] Cross-platform launchers (`run.py`, `run.bat`, `run.sh`) successfully orchestrate backend and frontend.
+- [x] Universal exports (.xlsx and .csv) open natively without conversion errors in Mac Numbers, Google Sheets, and Microsoft Excel.
 - [x] Live Vercel deployment ([https://sip-fintech-discovery-engine.vercel.app](https://sip-fintech-discovery-engine.vercel.app)) serves the latest build with cache-busting headers.

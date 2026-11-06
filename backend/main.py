@@ -32,7 +32,7 @@ from backend.ingestion.reddit import fetch_reddit_posts
 from backend.ingestion.youtube import fetch_youtube_comments
 from backend.ingestion.dedup import deduplicate_posts
 from backend.tagger.llm_tagger import tag_post, analyze_research_query
-from backend.exporter import export_posts_to_excel
+from backend.exporter import export_posts_to_excel, export_posts_to_csv
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -312,7 +312,8 @@ def export_filtered_posts(
     search_query: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
-    status: Optional[str] = Query("all")
+    status: Optional[str] = Query("all"),
+    format: Optional[str] = Query("xlsx")
 ):
     if search_query and search_query.strip():
         posts = hybrid_searcher.search(
@@ -340,12 +341,32 @@ def export_filtered_posts(
             limit=1000,
             offset=0
         )
-    excel_bytes = export_posts_to_excel(posts)
-    return Response(
-        content=excel_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=sip_discovery_research.xlsx"}
-    )
+
+    export_format = (format or "xlsx").strip().lower()
+
+    if export_format == "csv":
+        csv_str = export_posts_to_csv(posts)
+        csv_bytes = csv_str.encode("utf-8")
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv; charset=utf-8",
+            headers={
+                "Content-Disposition": 'attachment; filename="sip_discovery_research.csv"',
+                "Content-Length": str(len(csv_bytes)),
+                "Cache-Control": "no-cache, no-store, must-revalidate"
+            }
+        )
+    else:
+        excel_bytes = export_posts_to_excel(posts)
+        return Response(
+            content=excel_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": 'attachment; filename="sip_discovery_research.xlsx"',
+                "Content-Length": str(len(excel_bytes)),
+                "Cache-Control": "no-cache, no-store, must-revalidate"
+            }
+        )
 
 @app.post("/api/settings/api-key")
 def set_gemini_api_key(req: ApiKeyRequest):

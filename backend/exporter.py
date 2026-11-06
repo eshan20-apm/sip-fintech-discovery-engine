@@ -1,10 +1,12 @@
 import sys
 import os
 import io
+import csv
 from typing import List, Dict, Any, Optional
 import openpyxl
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 
 # Ensure project root is in sys.path
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +16,14 @@ if PROJECT_ROOT not in sys.path:
 
 from backend.database import get_db
 from backend.analytics.benchmark_eval import get_evaluation_metrics
+
+def clean_cell_val(val: Any) -> Any:
+    """Sanitizes strings to strip illegal XML control characters that corrupt Excel/Numbers."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return ILLEGAL_CHARACTERS_RE.sub("", val)
+    return val
 
 def format_worksheet(worksheet, header_color="1E293B", accent_color="38BDF8"):
     """Applies professional formatting, column auto-width, freeze panes, and clean headers."""
@@ -88,21 +98,21 @@ def export_posts_to_excel(posts: List[Dict[str, Any]]) -> bytes:
         evidence_quote = p.get("golden_evidence_quote") if (is_golden and p.get("golden_evidence_quote")) else p.get("ai_evidence_quote")
 
         ws1.append([
-            p.get("id"),
-            p.get("platform"),
-            p.get("source"),
-            p.get("published_at", "")[:10] if p.get("published_at") else "Live",
-            theme or "Unclear",
-            journey_stage or "Active SIP Phase",
-            what_they_did or "Unsure",
-            who_they_are or "Retail investor",
-            who_can_fix_it or "Fintech Platform",
-            evidence_quote or "",
-            "Golden Benchmark" if is_golden else "AI Tagged",
-            p.get("rrf_score", "N/A"),
-            p.get("golden_notes", ""),
-            p.get("raw_text", ""),
-            p.get("url", "")
+            clean_cell_val(p.get("id")),
+            clean_cell_val(p.get("platform")),
+            clean_cell_val(p.get("source")),
+            clean_cell_val(p.get("published_at", "")[:10] if p.get("published_at") else "Live"),
+            clean_cell_val(theme or "Unclear"),
+            clean_cell_val(journey_stage or "Active SIP Phase"),
+            clean_cell_val(what_they_did or "Unsure"),
+            clean_cell_val(who_they_are or "Retail investor"),
+            clean_cell_val(who_can_fix_it or "Fintech Platform"),
+            clean_cell_val(evidence_quote or ""),
+            clean_cell_val("Golden Benchmark" if is_golden else "AI Tagged"),
+            clean_cell_val(p.get("rrf_score", "N/A")),
+            clean_cell_val(p.get("golden_notes", "")),
+            clean_cell_val(p.get("raw_text", "")),
+            clean_cell_val(p.get("url", ""))
         ])
 
     format_worksheet(ws1, header_color="1E293B")
@@ -133,19 +143,19 @@ def export_posts_to_excel(posts: List[Dict[str, Any]]) -> bytes:
 
     for g in rows_golden:
         ws2.append([
-            g.get("id"),
-            g.get("platform"),
-            g.get("source"),
-            g.get("published_at", "")[:10] if g.get("published_at") else "",
-            g.get("theme"),
-            g.get("journey_stage"),
-            g.get("what_they_did"),
-            g.get("who_they_are"),
-            g.get("who_can_fix_it"),
-            g.get("evidence_quote") or "",
-            g.get("notes") or "",
-            g.get("raw_text"),
-            g.get("url")
+            clean_cell_val(g.get("id")),
+            clean_cell_val(g.get("platform")),
+            clean_cell_val(g.get("source")),
+            clean_cell_val(g.get("published_at", "")[:10] if g.get("published_at") else ""),
+            clean_cell_val(g.get("theme")),
+            clean_cell_val(g.get("journey_stage")),
+            clean_cell_val(g.get("what_they_did")),
+            clean_cell_val(g.get("who_they_are")),
+            clean_cell_val(g.get("who_can_fix_it")),
+            clean_cell_val(g.get("evidence_quote") or ""),
+            clean_cell_val(g.get("notes") or ""),
+            clean_cell_val(g.get("raw_text")),
+            clean_cell_val(g.get("url"))
         ])
 
     format_worksheet(ws2, header_color="065F46")
@@ -172,11 +182,63 @@ def export_posts_to_excel(posts: List[Dict[str, Any]]) -> bytes:
     ]
 
     for m in metrics_summary:
-        ws3.append(m)
+        ws3.append([clean_cell_val(m[0]), clean_cell_val(m[1]), clean_cell_val(m[2])])
 
     format_worksheet(ws3, header_color="312E81")
+
+    # Set standard Excel properties for maximum cross-platform compatibility
+    wb.properties.title = "SIP Investor Discovery Research"
+    wb.properties.creator = "SIP Discovery Engine"
+    wb.properties.description = "Retail investor feedback synthesis across Groww, Zerodha Coin, and Indian fintechs."
 
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
+    return output.getvalue()
+
+def export_posts_to_csv(posts: List[Dict[str, Any]]) -> str:
+    """
+    Generates a universal CSV spreadsheet with UTF-8 BOM (\ufeff).
+    Opens natively with 1-click in Mac Numbers, Google Sheets, and Microsoft Excel.
+    """
+    output = io.StringIO()
+    # Write UTF-8 BOM so Mac Numbers and Excel automatically detect UTF-8 characters and Hinglish correctly
+    output.write("\ufeff")
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    headers = [
+        "Post ID", "Platform", "Source", "Published Date",
+        "Dynamic Theme (2-3 Words)", "Journey Stage", "Action Taken",
+        "Investor Persona", "Responsible Entity", "Verbatim Evidence Quote",
+        "Status", "RRF Relevance Score", "PM Notes", "Raw Feedback", "Original Source URL"
+    ]
+    writer.writerow(headers)
+
+    for p in posts:
+        is_golden = p.get("is_hand_labelled") == 1
+        theme = p.get("golden_theme") if is_golden else p.get("ai_theme")
+        journey_stage = p.get("golden_journey_stage") if is_golden else p.get("ai_journey_stage")
+        what_they_did = p.get("golden_what_they_did") if is_golden else p.get("ai_what_they_did")
+        who_they_are = p.get("golden_who_they_are") if is_golden else p.get("ai_who_they_are")
+        who_can_fix_it = p.get("golden_who_can_fix_it") if is_golden else p.get("ai_who_can_fix_it")
+        evidence_quote = p.get("golden_evidence_quote") if (is_golden and p.get("golden_evidence_quote")) else p.get("ai_evidence_quote")
+
+        writer.writerow([
+            p.get("id"),
+            p.get("platform"),
+            p.get("source"),
+            p.get("published_at", "")[:10] if p.get("published_at") else "Live",
+            theme or "Unclear",
+            journey_stage or "Active SIP Phase",
+            what_they_did or "Unsure",
+            who_they_are or "Retail investor",
+            who_can_fix_it or "Fintech Platform",
+            evidence_quote or "",
+            "Golden Benchmark" if is_golden else "AI Tagged",
+            p.get("rrf_score", "N/A"),
+            p.get("golden_notes", ""),
+            p.get("raw_text", ""),
+            p.get("url", "")
+        ])
+
     return output.getvalue()

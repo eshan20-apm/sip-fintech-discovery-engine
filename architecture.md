@@ -166,7 +166,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
   * Cohen's Kappa ($\kappa$) chance-adjusted agreement computation.
   * Interactive Theme Confusion Matrix with diagonal match highlights.
   * Disagreement Inspector providing side-by-side comparison cards and one-click resolution (`Accept AI Prediction` or `Keep Golden Benchmark`).
-* **Multi-Tab Excel Export**: Single-click `.xlsx` download with 3 formatted sheets (*Active Feed*, *Golden Set*, *Reliability Metrics*).
+* **Universal Spreadsheet Export Engine**: Single-click downloads compatible with **Mac Numbers**, **Google Sheets**, and **Microsoft Excel**:
+  * Multi-Tab `.xlsx` workbook generated via `openpyxl` with XML-illegal character control filtering (`clean_cell_val`).
+  * Universal `.csv` export with UTF-8 Byte Order Mark (`\ufeff`) for zero-configuration UTF-8 and Hinglish fidelity.
+  * Resilient client-side streaming with 60-second delayed blob object URL revocation and direct browser download fallbacks.
 
 ---
 
@@ -181,4 +184,4 @@ CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
 ### 6.2 Cross-Platform Execution
 * **Universal Launcher (`run.py`)**: Platform-independent Python script for macOS, Windows, and Linux that validates virtual environments, installs requirements, executes migrations, and launches backend & frontend.
 * **Native Launchers**: `run.bat` for Windows and `run.sh` for macOS/Linux.
-* **Automated Test Suite**: 31 unit and integration tests under `tests/` covering API, database, evaluation, exporter, ingestion, retrieval, and tagging.
+* **Automated Test Suite**: 33 unit and integration tests under `tests/` covering API, database, evaluation, exporter (.xlsx, .csv, sanitization), ingestion, retrieval, and tagging.

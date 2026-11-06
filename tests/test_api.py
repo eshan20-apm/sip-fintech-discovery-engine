@@ -45,10 +45,19 @@ class TestAPI(unittest.TestCase):
         self.assertIn("disagreements", res.json())
 
     def test_export_endpoint(self):
+        # Default xlsx export
         res = self.client.get("/api/export")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.headers["content-type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.assertIn('filename="sip_discovery_research.xlsx"', res.headers["content-disposition"])
         self.assertGreater(len(res.content), 1000)
+
+        # CSV export with UTF-8 BOM
+        res_csv = self.client.get("/api/export?format=csv")
+        self.assertEqual(res_csv.status_code, 200)
+        self.assertEqual(res_csv.headers["content-type"], "text/csv; charset=utf-8")
+        self.assertIn('filename="sip_discovery_research.csv"', res_csv.headers["content-disposition"])
+        self.assertTrue(res_csv.content.startswith(b"\xef\xbb\xbf"))  # UTF-8 BOM bytes
 
     def test_settings_api_key(self):
         res = self.client.post("/api/settings/api-key", json={"api_key": ""})

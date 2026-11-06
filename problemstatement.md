@@ -51,3 +51,4 @@ The **SIP Discovery Engine** addresses this gap by providing an end-to-end quali
   * The **Structured Investor Feedback Feed** reveals dynamically upon submitting an inquiry, eliminating clutter on startup.
 * **Transparent Golden Set & Reliability Suite**: Allows instant manual tag correction, computing observed agreement %, multi-field Cohen's Kappa ($\kappa$), interactive confusion matrix, and Disagreement Inspector.
 * **Production & Deployment Reliability**: Built with cross-platform launchers (`run.py`, `run.bat`, `run.sh`), comprehensive unit test coverage, offline scraper resilience, and Vercel cloud serverless deployment compatibility.
+* **Universal Spreadsheet Interoperability**: 1-click dual exports (.xlsx and .csv with UTF-8 BOM) compatible with Mac Numbers, Google Sheets, and Microsoft Excel with zero encoding or truncation glitches.
