@@ -59,6 +59,16 @@ class TestAPI(unittest.TestCase):
         self.assertIn('filename="sip_discovery_research.csv"', res_csv.headers["content-disposition"])
         self.assertTrue(res_csv.content.startswith(b"\xef\xbb\xbf"))  # UTF-8 BOM bytes
 
+        # Custom filename parameter with dot (e.g. 1.4) automatically protected with .xlsx
+        res_custom = self.client.get("/api/export?filename=1.4")
+        self.assertEqual(res_custom.status_code, 200)
+        self.assertIn('filename="1.4.xlsx"', res_custom.headers["content-disposition"])
+
+        # Custom filename parameter with existing extension does not duplicate extension
+        res_custom_ext = self.client.get("/api/export?filename=1.4.xlsx")
+        self.assertEqual(res_custom_ext.status_code, 200)
+        self.assertIn('filename="1.4.xlsx"', res_custom_ext.headers["content-disposition"])
+
     def test_settings_api_key(self):
         res = self.client.post("/api/settings/api-key", json={"api_key": ""})
         self.assertEqual(res.status_code, 200)

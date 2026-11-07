@@ -23,6 +23,7 @@ export default function ResearchPromptBar({
   queryAnalysis
 }) {
   const [inputQuery, setInputQuery] = useState('');
+  const [customFilename, setCustomFilename] = useState('');
 
   const handleSubmit = (e) => {
     e?.preventDefault();
@@ -130,10 +131,30 @@ export default function ResearchPromptBar({
         </div>
 
         <div className="export-actions-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            type="text"
+            className="export-filename-input"
+            placeholder="Name (e.g. 1.4)"
+            value={customFilename}
+            onChange={(e) => setCustomFilename(e.target.value)}
+            disabled={isExporting}
+            title="Optional custom filename. The .xlsx / .csv extension is permanently locked and protected."
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.12))',
+              borderRadius: 'var(--radius-md, 6px)',
+              padding: '6px 10px',
+              fontSize: '0.8rem',
+              color: '#f1f5f9',
+              width: '120px',
+              outline: 'none',
+              transition: 'all 0.15s ease'
+            }}
+          />
           <button 
             type="button"
             className="btn-secondary"
-            onClick={() => onExportExcel ? onExportExcel('xlsx') : onExport?.('xlsx')}
+            onClick={() => onExportExcel ? onExportExcel('xlsx', customFilename) : onExport?.('xlsx', customFilename)}
             disabled={isExporting}
             title="Download multi-tab formatted workbook (.xlsx) for Mac Numbers, Google Sheets & MS Excel"
           >
@@ -143,7 +164,7 @@ export default function ResearchPromptBar({
           <button 
             type="button"
             className="btn-secondary"
-            onClick={() => onExportCsv ? onExportCsv() : onExport?.('csv')}
+            onClick={() => onExportCsv ? onExportCsv('csv', customFilename) : onExport?.('csv', customFilename)}
             disabled={isExporting}
             title="Download universal UTF-8 BOM CSV (.csv) for Mac Numbers, Google Sheets & MS Excel"
           >

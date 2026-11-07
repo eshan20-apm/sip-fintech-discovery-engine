@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import warnings
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -313,7 +314,8 @@ def export_filtered_posts(
     platform: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
     status: Optional[str] = Query("all"),
-    format: Optional[str] = Query("xlsx")
+    format: Optional[str] = Query("xlsx"),
+    filename: Optional[str] = Query(None)
 ):
     if search_query and search_query.strip():
         posts = hybrid_searcher.search(
@@ -344,6 +346,17 @@ def export_filtered_posts(
 
     export_format = (format or "xlsx").strip().lower()
 
+    # Determine safe attachment filename guaranteed to end in .{export_format}
+    if filename and filename.strip():
+        safe_stem = filename.strip()
+        safe_stem = re.sub(rf'\.{export_format}$', '', safe_stem, flags=re.IGNORECASE).strip()
+        if not safe_stem:
+            safe_stem = "sip_discovery_research"
+        safe_stem = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', safe_stem)
+    else:
+        safe_stem = "sip_discovery_research"
+    attachment_name = f"{safe_stem}.{export_format}"
+
     if export_format == "csv":
         csv_str = export_posts_to_csv(posts)
         csv_bytes = csv_str.encode("utf-8")
@@ -351,7 +364,7 @@ def export_filtered_posts(
             content=csv_bytes,
             media_type="text/csv; charset=utf-8",
             headers={
-                "Content-Disposition": 'attachment; filename="sip_discovery_research.csv"',
+                "Content-Disposition": f'attachment; filename="{attachment_name}"',
                 "Content-Length": str(len(csv_bytes)),
                 "Cache-Control": "no-cache, no-store, must-revalidate"
             }
@@ -362,7 +375,7 @@ def export_filtered_posts(
             content=excel_bytes,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
-                "Content-Disposition": 'attachment; filename="sip_discovery_research.xlsx"',
+                "Content-Disposition": f'attachment; filename="{attachment_name}"',
                 "Content-Length": str(len(excel_bytes)),
                 "Cache-Control": "no-cache, no-store, must-revalidate"
             }

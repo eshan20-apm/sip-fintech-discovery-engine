@@ -179,7 +179,7 @@ export default function App() {
     }
   };
 
-  const handleExport = async (format = 'xlsx') => {
+  const handleExport = async (format = 'xlsx', customName = '') => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
@@ -188,7 +188,26 @@ export default function App() {
       if (status !== 'all') params.append('status', status);
       params.append('format', format);
 
-      const downloadFilename = `sip_discovery_research_${new Date().toISOString().slice(0, 10)}.${format}`;
+      // Derive smart base filename (prioritize custom name, then query-derived slug, then date)
+      let baseName = '';
+      if (customName && customName.trim()) {
+        baseName = customName.trim();
+      } else if (activeQuery.trim()) {
+        const querySlug = activeQuery.trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .slice(0, 32)
+          .replace(/^_+|_+$/g, '');
+        baseName = `sip_research_${querySlug}_${new Date().toISOString().slice(0, 10)}`;
+      } else {
+        baseName = `sip_discovery_research_${new Date().toISOString().slice(0, 10)}`;
+      }
+
+      // Safeguard against period/extension collisions: strip existing .xlsx / .csv if user typed it
+      const cleanStem = baseName.replace(new RegExp(`\\.${format}$`, 'i'), '');
+      const downloadFilename = `${cleanStem}.${format}`;
+
+      params.append('filename', cleanStem);
 
       const response = await fetch(`/api/export?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to generate export');
@@ -226,6 +245,9 @@ export default function App() {
       if (platform !== 'all') params.append('platform', platform);
       if (status !== 'all') params.append('status', status);
       params.append('format', format);
+      if (customName && customName.trim()) {
+        params.append('filename', customName.trim());
+      }
       window.location.href = `/api/export?${params.toString()}`;
     } finally {
       setIsExporting(false);
@@ -311,8 +333,8 @@ export default function App() {
           status={status}
           onStatusChange={handleStatusChange}
           onExport={handleExport}
-          onExportExcel={() => handleExport('xlsx')}
-          onExportCsv={() => handleExport('csv')}
+          onExportExcel={(fmt, name) => handleExport(fmt || 'xlsx', name)}
+          onExportCsv={(fmt, name) => handleExport('csv', name)}
           isExporting={isExporting}
           queryAnalysis={queryAnalysis}
         />

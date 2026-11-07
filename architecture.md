@@ -170,6 +170,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS posts_fts USING fts5(
   * Multi-Tab `.xlsx` workbook generated via `openpyxl` with XML-illegal character control filtering (`clean_cell_val`).
   * Universal `.csv` export with UTF-8 Byte Order Mark (`\ufeff`) for zero-configuration UTF-8 and Hinglish fidelity.
   * Resilient client-side streaming with 60-second delayed blob object URL revocation and direct browser download fallbacks.
+  * Smart query-aware filename generation and extension guard locking `.xlsx` and `.csv` extensions against macOS period-extension truncation (`1.4 -> 1.4.xlsx`).
 
 ---
 

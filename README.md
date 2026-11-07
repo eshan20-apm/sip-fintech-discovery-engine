@@ -171,6 +171,9 @@ The workbench provides one-click export into universally compatible formats desi
    * *Sanitization Guarantee*: Strips all illegal XML control characters (`\x00`–`\x1f`) ensuring Apple Numbers and Excel open the file without corruption warnings.
 2. **Universal CSV (`.csv`)**: Raw structured export encoded with a **UTF-8 Byte Order Mark (BOM: `\ufeff`)**, allowing Apple Numbers, Google Sheets, and Excel on macOS, Windows, and Linux to instantly auto-detect UTF-8 character encoding, currency symbols (₹), and Hinglish accents with zero wizard imports.
 3. **Browser Download Resilience**: Employs delayed object URL lifecycle cleanup (`setTimeout 60s`) and direct browser navigation fallbacks to guarantee downloads complete without generating broken `.bin` or truncated files across Safari and Chrome.
+4. **Smart Filename & macOS Extension Guard**:
+   * Automatic query-based filename slugs (e.g. `sip_research_market_drops_2026-11-07.xlsx`) prevent file overwrites between research queries.
+   * Optional custom filename input in the prompt bar (e.g. typing `1.4` automatically locks and downloads `1.4.xlsx`), preventing macOS from mistaking numbered prompt names for file extensions.
 
 ---
 

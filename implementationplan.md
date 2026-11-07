@@ -211,6 +211,7 @@ Guarantee that external researchers and public open-source users running the wor
 * **Dual Format Support**: Extended `/api/export` in `backend/main.py` to support both formatted Excel (`format=xlsx`) and universal CSV (`format=csv`).
 * **UTF-8 Byte Order Mark (BOM)**: Added `\ufeff` to CSV generation so Apple Numbers, Google Sheets, and Excel automatically recognize UTF-8 characters, rupee signs (₹), and Hinglish terms.
 * **Client-Side Blob Lifecycle Resilience**: Fixed synchronous `URL.revokeObjectURL()` in `frontend/src/App.jsx` with a 60-second delayed cleanup and direct browser navigation fallback, eliminating truncated `.bin` or `.txt` downloads on Safari and Chrome.
+* **Smart Filename & macOS Extension Guard**: Added query-aware filename generation and an optional filename input in the prompt bar that automatically enforces and appends `.xlsx` / `.csv` (e.g. `1.4` $\rightarrow$ `1.4.xlsx`), preventing macOS Save sheets from dropping extensions when periods are entered.
 
 ### 5.8 Verification & Testing Criteria
 - [x] Zero language server / type checker errors across all backend modules.
